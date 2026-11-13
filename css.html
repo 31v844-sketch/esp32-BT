@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 人物重心平衡尾巴系統 (支援 ESP32 BLE)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #1a1a2e;
+            color: white;
+            user-select: none;
+        }
+        #ui-panel {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            width: 310px;
+            background: rgba(22, 33, 62, 0.9);
+            backdrop-filter: blur(8px);
+            padding: 18px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            z-index: 10;
+        }
+        h3 { margin: 0 0 12px 0; font-size: 16px; color: #4cc9f0; }
+        .control-group { margin-bottom: 14px; }
+        label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; color: #ccc; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: #4cc9f0; }
+        .btn-group { display: flex; gap: 8px; margin-bottom: 14px; }
+        button {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            background: #2b2d42;
+            color: white;
+            transition: 0.2s;
+        }
+        button:hover { background: #3f4263; }
+        button.active { background: #4cc9f0; color: #000; font-weight: bold; }
+        #bleBtn {
+            width: 100%;
+            padding: 10px;
+            background: #f72585;
+            font-weight: bold;
+            margin-top: 6px;
+        }
+        #bleBtn.connected { background: #2ec4b6; color: #000; }
+        #telemetry {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #4cc9f0;
+            background: rgba(0,0,0,0.4);
+            padding: 8px;
+            border-radius: 6px;
+            font-family: monospace;
+            line-height: 1.5;
+        }
+        .hint {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #888;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-panel">
+    <h3>重心平衡尾巴控制系統</h3>
+    
+    <div class="btn-group">
+        <button id="poseIdle" class="active">待機歸零</button>
+        <button id="poseLeanL">左側傾測試</button>
+        <button id="poseLeanR">右側傾測試</button>
+    </div>
+
+    <div class="control-group">
+        <label><span>側向傾斜 (Roll 左右重心)</span><span id="rollVal">0°</span></label>
+        <input type="range" id="rollSlider" min="-45" max="45" value="0">
+    </div>
+
+    <div class="control-group">
+        <label><span>前後傾角 (Pitch 俯仰重心)</span><span id="pitchVal">0°</span></label>
+        <input type="range" id="pitchSlider" min="-35" max="35" value="0">
+    </div>
+
+    <div class="control-group">
+        <label><span>平衡補償增益 (尾巴反應靈敏度)</span><span id="gainVal">1.5x</span></label>
+        <input type="range" id="gainSlider" min="0.5" max="2.5" step="0.1" value="1.5">
+    </div>
+
+    <button id="bleBtn">連線 ESP32-C3 同步實體尾巴</button>
+    <div id="telemetry">
+        系統狀態：待機靜止 (重心置中)<br>
+        舵機角度 -> 水平: 90° | 垂直: 90°
+    </div>
+    <div class="hint">按住滑鼠左鍵拖曳可旋轉 3D 觀察視角</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+    // ================= 1. 3D 場景與滑鼠視角控制 =================
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x1a1a2e, 0.03);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+    let camAngleY = Math.PI; // 預設從正後方偏側邊觀察尾巴平衡
+    let camAngleX = 0.35;
+    let camDist = 4.8;
+
+    function updateCameraPosition() {
+        camera.position.x = camDist * Math.sin(camAngleY) * Math.cos(camAngleX);
+        camera.position.y = 1.2 + camDist * Math.sin(camAngleX);
+        camera.position.z = camDist * Math.cos(camAngleY) * Math.cos(camAngleX);
+        camera.lookAt(0, 1.1, 0);
+    }
+    updateCameraPosition();
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // 滑鼠拖曳旋轉視角
+    let isDragging = false, prevX = 0, prevY = 0;
+    renderer.domElement.addEventListener('mousedown', (e) => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+    window.addEventListener('mouseup', () => isDragging = false);
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        camAngleY -= (e.clientX - prevX) * 0.01;
+        camAngleX = THREE.MathUtils.clamp(camAngleX + (e.clientY - prevY) * 0.01, -0.2, 1.2);
+        prevX = e.clientX; prevY = e.clientY;
+        updateCameraPosition();
+    });
+
+    // 燈光與地板參考線
+    scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+    dirLight.position.set(4, 10, 4);
+    scene.add(dirLight);
+
+    const gridHelper = new THREE.GridHelper(16, 16, 0x4cc9f0, 0x2b2d42);
+    scene.add(gridHelper);
+
+    // 重心鉛垂參考線 (顯示中心垂直基準線)
+    const refLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 2.8, 0)]);
+    const refLineMat = new THREE.LineBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.4 });
+    scene.add(new THREE.Line(refLineGeo, refLineMat));
+
+    // ================= 2. 建立人物模型 (以腳底為傾斜支點) =================
+    const pivotGroup = new THREE.Group(); // 腳底支點，控制整體側傾與前後傾
+    scene.add(pivotGroup);
+
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x4361ee, roughness: 0.4 });
+    const headMat = new THREE.MeshStandardMaterial({ color: 0x4cc9f0, roughness: 0.3 });
+    const tailMat = new THREE.MeshStandardMaterial({ color: 0xf72585, roughness: 0.3 });
+
+    const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.75, 0.22), bodyMat);
+    leftLeg.position.set(-0.2, 0.375, 0);
+    pivotGroup.add(leftLeg);
+
+    const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.75, 0.22), bodyMat);
+    rightLeg.position.set(0.2, 0.375, 0);
+    pivotGroup.add(rightLeg);
+
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.75, 1.0, 0.4), bodyMat);
+    torso.position.y = 1.25;
+    pivotGroup.add(torso);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), headMat);
+    head.position.y = 2.05;
+    pivotGroup.add(head);
+
+    // ================= 3. 建立多關節重心平衡尾巴 =================
+    const tailSegments = [];
+    const segmentCount = 5;
+    let parentJoint = new THREE.Group();
+    parentJoint.position.set(0, 0.85, -0.2); // 安裝在腰部後方
+    pivotGroup.add(parentJoint);
+
+    for (let i = 0; i < segmentCount; i++) {
+        const joint = new THREE.Group();
+        if (i > 0) joint.position.set(0, 0, -0.34);
+
+        const thickness = 0.16 * (1 - i * 0.13);
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(thickness, thickness, 0.36), tailMat);
+        mesh.position.set(0, 0, -0.17);
+        joint.add(mesh);
+
+        parentJoint.add(joint);
+        tailSegments.push(joint);
+        parentJoint = joint;
+    }
+
+    // ================= 4. 控制參數與滑桿連動 =================
+    let targetRoll = 0;   // 側傾角度 (-45 ~ +45 度，負=左傾，正=右傾)
+    let targetPitch = 0;  // 前後傾角 (-35 ~ +35 度，正=前傾，負=後仰)
+    let balanceGain = 1.5;// 平衡補償倍數
+
+    // 平滑物理追蹤變數 (阻尼運動)
+    let currentRoll = 0;
+    let currentPitch = 0;
+    let tailCounterYaw = 0;
+    let tailCounterPitch = 0;
+
+    const rollSlider = document.getElementById('rollSlider');
+    const pitchSlider = document.getElementById('pitchSlider');
+    const gainSlider = document.getElementById('gainSlider');
+
+    function updateUIValues() {
+        rollSlider.value = targetRoll;
+        pitchSlider.value = targetPitch;
+        document.getElementById('rollVal').innerText = targetRoll + '°';
+        document.getElementById('pitchVal').innerText = targetPitch + '°';
+        document.getElementById('gainVal').innerText = balanceGain.toFixed(1) + 'x';
+    }
+
+    rollSlider.oninput = (e) => { targetRoll = parseFloat(e.target.value); clearActiveBtn(); updateUIValues(); };
+    pitchSlider.oninput = (e) => { targetPitch = parseFloat(e.target.value); clearActiveBtn(); updateUIValues(); };
+    gainSlider.oninput = (e) => { balanceGain = parseFloat(e.target.value); updateUIValues(); };
+
+    function clearActiveBtn() {
+        document.querySelectorAll('.btn-group button').forEach(b => b.classList.remove('active'));
+    }
+
+    document.getElementById('poseIdle').onclick = (e) => {
+        targetRoll = 0; targetPitch = 0;
+        clearActiveBtn(); e.target.classList.add('active'); updateUIValues();
+    };
+    document.getElementById('poseLeanL').onclick = (e) => {
+        targetRoll = -30; targetPitch = 5;
+        clearActiveBtn(); e.target.classList.add('active'); updateUIValues();
+    };
+    document.getElementById('poseLeanR').onclick = (e) => {
+        targetRoll = 30; targetPitch = 5;
+        clearActiveBtn(); e.target.classList.add('active'); updateUIValues();
+    };
+
+    // ================= 5. ESP32 BLE 藍牙同步模組 =================
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    let bleCharacteristic = null;
+    let lastBleSendTime = 0;
+
+    document.getElementById('bleBtn').addEventListener('click', async () => {
+        try {
+            const device = await navigator.bluetooth.requestDevice({
+                filters: [{ name: 'ESP32_Web_Controller' }],
+                optionalServices: [SERVICE_UUID]
+            });
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService(SERVICE_UUID);
+            bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+            
+            const btn = document.getElementById('bleBtn');
+            btn.innerText = "已連線 ESP32-C3 (重心平衡同步中)";
+            btn.classList.add('connected');
+        } catch (err) {
+            console.log("藍牙連線取消或失敗:", err);
+        }
+    });
+
+    async function sendTailToESP32(yawDeg, pitchDeg) {
+        if (!bleCharacteristic) return;
+        const now = Date.now();
+        if (now - lastBleSendTime < 60) return; 
+        lastBleSendTime = now;
+
+        try {
+            const payload = `${yawDeg},${pitchDeg}`;
+            await bleCharacteristic.writeValue(new TextEncoder().encode(payload));
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    // ================= 6. 重心平衡物理計算主迴圈 =================
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // 1. 人物身體平滑傾斜 (阻尼插值，待機時完全歸零不動)
+        currentRoll += (targetRoll - currentRoll) * 0.1;
+        currentPitch += (targetPitch - currentPitch) * 0.1;
+
+        // Three.js 座標系中，Z軸旋轉控制左右側傾 (Roll)，X軸旋轉控制前後俯仰 (Pitch)
+        pivotGroup.rotation.z = -THREE.MathUtils.degToRad(currentRoll);
+        pivotGroup.rotation.x = THREE.MathUtils.degToRad(currentPitch);
+
+        // 2. 計算尾巴重心平衡補償角度
+        // 當身體往左傾 (currentRoll < 0)，相對於身體座標系，尾巴必須往「右側」甩出以拉回重心
+        // 因為整個 pivotGroup 已經轉了 -currentRoll，尾巴需要產生反向力矩
+        const desiredTailYawDeg = currentRoll * balanceGain; 
+        
+        // 當身體往前傾 (currentPitch > 0)，尾巴向上抬起以平衡前傾力矩；後仰時向下壓低
+        // 此外，當大幅度側傾時，尾巴也會略微抬高以增加力臂長度
+        const rollLiftBonus = Math.abs(currentRoll) * 0.25;
+        const desiredTailPitchDeg = (currentPitch * balanceGain * 0.8) + rollLiftBonus;
+
+        // 尾巴伺服馬達的響應速度 (略快於身體傾倒，模擬主動平衡反應)
+        tailCounterYaw += (desiredTailYawDeg - tailCounterYaw) * 0.14;
+        tailCounterPitch += (desiredTailPitchDeg - tailCounterPitch) * 0.14;
+
+        // 3. 將平衡角度分配到尾巴的 5 節關節 (形成自然的弧形平衡力臂)
+        const totalYawRad = THREE.MathUtils.degToRad(tailCounterYaw);
+        const totalPitchRad = THREE.MathUtils.degToRad(tailCounterPitch);
+
+        tailSegments.forEach((segment, index) => {
+            // 根部承受較大角度，越往尾端越平順延伸
+            const weight = (1.3 - index * 0.12) / segmentCount;
+            segment.rotation.y = totalYawRad * weight;
+            segment.rotation.x = totalPitchRad * weight;
+        });
+
+        // 4. 轉換為實體舵機角度 (0° ~ 180°，90° 為待機靜止中立點)
+        const servoYaw = Math.round(THREE.MathUtils.clamp(90 + tailCounterYaw, 10, 170));
+        const servoPitch = Math.round(THREE.MathUtils.clamp(90 + tailCounterPitch, 20, 160));
+
+        // 狀態顯示判斷
+        const isIdle = Math.abs(currentRoll) < 0.2 && Math.abs(currentPitch) < 0.2;
+        const statusText = isIdle 
+            ? "待機靜止 (重心置中無動作)" 
+            : (currentRoll < -1 ? "左側傾 -> 尾巴向右轉移重心" : (currentRoll > 1 ? "右側傾 -> 尾巴向左轉移重心" : "前後俯仰平衡補償中"));
+
+        document.getElementById('telemetry').innerHTML = 
+            `狀態：${statusText}<br>舵機角度 -> 水平: ${servoYaw}° | 垂直: ${servoPitch}°`;
+
+        sendTailToESP32(servoYaw, servoPitch);
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+</script>
+</body>
+</html>
