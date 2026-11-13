@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 藍牙控制器</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+        }
+        .card {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 300px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #connectBtn { background-color: #007bff; color: white; }
+        #connectBtn:hover { background-color: #0056b3; }
+        .btn-on { background-color: #28a745; color: white; }
+        .btn-off { background-color: #dc3545; color: white; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        #status { margin-top: 15px; font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>ESP32 BLE 控制面板</h2>
+    <button id="connectBtn">搜尋並連線 ESP32</button>
+    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+    <button id="onBtn" class="btn-on" disabled>開啟 LED (傳送 1)</button>
+    <button id="offBtn" class="btn-off" disabled>關閉 LED (傳送 0)</button>
+    <div id="status">狀態：未連線</div>
+</div>
+
+<script>
+    // 必須與 ESP32 程式碼中的 UUID 完全一致
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+    let bleDevice;
+    let bleCharacteristic;
+
+    const connectBtn = document.getElementById('connectBtn');
+    const onBtn = document.getElementById('onBtn');
+    const offBtn = document.getElementById('offBtn');
+    const statusText = document.getElementById('status');
+
+    // 1. 連線藍牙裝置
+    connectBtn.addEventListener('click', async () => {
+        try {
+            statusText.innerText = "狀態：正在搜尋裝置...";
+            
+            // 請求瀏覽器跳出藍牙配對視窗
+            bleDevice = await navigator.bluetooth.requestDevice({
+                filters: [{ name: 'ESP32_Web_Controller' }],
+                optionalServices: [SERVICE_UUID]
+            });
+
+            // 監聽斷線事件
+            bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+            statusText.innerText = "狀態：連線中...";
+            const server = await bleDevice.gatt.connect();
+            const service = await server.getPrimaryService(SERVICE_UUID);
+            bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+            // 更新 UI 狀態
+            statusText.innerText = `狀態：已連線至 ${bleDevice.name}`;
+            connectBtn.innerText = "已連線";
+            connectBtn.disabled = true;
+            onBtn.disabled = false;
+            offBtn.disabled = false;
+
+        } catch (error) {
+            console.error(error);
+            statusText.innerText = "狀態：連線取消或失敗";
+        }
+    });
+
+    // 2. 傳送資料到 ESP32
+    async function sendCommand(cmd) {
+        if (!bleCharacteristic) return;
+        try {
+            const encoder = new TextEncoder(); // 將字串轉為 Uint8Array 位元組
+            await bleCharacteristic.writeValue(encoder.encode(cmd));
+            console.log(`已傳送: ${cmd}`);
+        } catch (error) {
+            console.error("傳送失敗:", error);
+            statusText.innerText = "狀態：指令傳送失敗";
+        }
+    }
+
+    // 3. 斷線處理
+    function onDisconnected() {
+        statusText.innerText = "狀態：裝置已斷線";
+        connectBtn.innerText = "搜尋並連線 ESP32";
+        connectBtn.disabled = false;
+        onBtn.disabled = true;
+        offBtn.disabled = true;
+    }
+
+    onBtn.addEventListener('click', () => sendCommand("1"));
+    offBtn.addEventListener('click', () => sendCommand("0"));
+</script>
+
+</body>
+</html>
