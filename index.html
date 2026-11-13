@@ -3,125 +3,332 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 藍牙控制器</title>
+    <title>3D 人物姿態與動態尾巴模擬器 (支援 ESP32 BLE)</title>
     <style>
         body {
-            font-family: system-ui, -apple-system, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
             margin: 0;
-            background-color: #f4f4f9;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #1a1a2e;
+            color: white;
         }
-        .card {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            text-align: center;
+        #ui-panel {
+            position: absolute;
+            top: 16px;
+            left: 16px;
             width: 300px;
+            background: rgba(22, 33, 62, 0.88);
+            backdrop-filter: blur(8px);
+            padding: 18px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
         }
+        h3 { margin: 0 0 12px 0; font-size: 16px; color: #4cc9f0; }
+        .control-group { margin-bottom: 14px; }
+        label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; color: #ccc; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: #4cc9f0; }
+        .btn-group { display: flex; gap: 8px; margin-bottom: 12px; }
         button {
-            width: 100%;
-            padding: 12px;
-            margin: 8px 0;
-            font-size: 16px;
+            flex: 1;
+            padding: 8px;
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
+            font-size: 13px;
             cursor: pointer;
-            transition: background 0.2s;
+            background: #2b2d42;
+            color: white;
+            transition: 0.2s;
         }
-        #connectBtn { background-color: #007bff; color: white; }
-        #connectBtn:hover { background-color: #0056b3; }
-        .btn-on { background-color: #28a745; color: white; }
-        .btn-off { background-color: #dc3545; color: white; }
-        button:disabled { background-color: #cccccc; cursor: not-allowed; }
-        #status { margin-top: 15px; font-size: 14px; color: #666; }
+        button:hover { background: #3f4263; }
+        button.active { background: #4cc9f0; color: #000; font-weight: bold; }
+        #bleBtn {
+            width: 100%;
+            padding: 10px;
+            background: #f72585;
+            font-weight: bold;
+            margin-top: 6px;
+        }
+        #bleBtn.connected { background: #2ec4b6; color: #000; }
+        #telemetry {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #a0a0b0;
+            background: rgba(0,0,0,0.3);
+            padding: 8px;
+            border-radius: 6px;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h2>ESP32 BLE 控制面板</h2>
-    <button id="connectBtn">搜尋並連線 ESP32</button>
-    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
-    <button id="onBtn" class="btn-on" disabled>開啟 LED (傳送 1)</button>
-    <button id="offBtn" class="btn-off" disabled>關閉 LED (傳送 0)</button>
-    <div id="status">狀態：未連線</div>
+<div id="ui-panel">
+    <h3>人物姿態與尾巴連動控制</h3>
+    
+    <div class="btn-group">
+        <button id="poseIdle" class="active">站立待機</button>
+        <button id="poseWalk">小跑步態</button>
+        <button id="poseCrouch">警戒低姿</button>
+    </div>
+
+    <div class="control-group">
+        <label><span>移動速度 (前進慣性)</span><span id="speedVal">0</span></label>
+        <input type="range" id="speedSlider" min="0" max="100" value="0">
+    </div>
+
+    <div class="control-group">
+        <label><span>身體轉向 (離心甩尾)</span><span id="turnVal">0°</span></label>
+        <input type="range" id="turnSlider" min="-60" max="60" value="0">
+    </div>
+
+    <div class="control-group">
+        <label><span>情緒興奮度 (搖擺幅度)</span><span id="moodVal">50%</span></label>
+        <input type="range" id="moodSlider" min="10" max="100" value="50">
+    </div>
+
+    <button id="bleBtn">連線 ESP32-C3 同步實體尾巴</button>
+    <div id="telemetry">舵機輸出角度 -> 水平: 90° | 垂直: 90°</div>
 </div>
 
+<!-- 引入 Three.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
 <script>
-    // 必須與 ESP32 程式碼中的 UUID 完全一致
+    // ================= 1. 3D 場景初始化 =================
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x1a1a2e, 0.035);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(3.5, 2.5, 4.5);
+    camera.lookAt(0, 1.0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    // 燈光與地板網格
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(5, 10, 5);
+    scene.add(dirLight);
+
+    const gridHelper = new THREE.GridHelper(20, 20, 0x4cc9f0, 0x2b2d42);
+    scene.add(gridHelper);
+
+    // ================= 2. 建立模擬人物模型 =================
+    const characterGroup = new THREE.Group();
+    scene.add(characterGroup);
+
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x4361ee, roughness: 0.4 });
+    const headMat = new THREE.MeshStandardMaterial({ color: 0x4cc9f0, roughness: 0.3 });
+    const tailMat = new THREE.MeshStandardMaterial({ color: 0xf72585, roughness: 0.3 });
+
+    // 軀幹
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.0, 0.4), bodyMat);
+    torso.position.y = 1.1;
+    characterGroup.add(torso);
+
+    // 頭部 (前方朝向 +Z)
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), headMat);
+    head.position.y = 1.95;
+    characterGroup.add(head);
+
+    // 雙腿 (用於表現走路/跑步動態)
+    const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.7, 0.22), bodyMat);
+    leftLeg.position.set(-0.2, 0.35, 0);
+    characterGroup.add(leftLeg);
+
+    const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.7, 0.22), bodyMat);
+    rightLeg.position.set(0.2, 0.35, 0);
+    characterGroup.add(rightLeg);
+
+    // ================= 3. 建立多關節虛擬尾巴 (階層式骨架) =================
+    // 尾巴安裝在腰部後方 (Z = -0.2)
+    const tailSegments = [];
+    const segmentCount = 5;
+    let parentJoint = new THREE.Group();
+    parentJoint.position.set(0, 0.75, -0.2); // 尾巴根部位置
+    characterGroup.add(parentJoint);
+
+    for (let i = 0; i < segmentCount; i++) {
+        const joint = new THREE.Group();
+        if (i > 0) joint.position.set(0, 0, -0.32); // 往後方延伸
+
+        const thickness = 0.16 * (1 - i * 0.14);
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(thickness, thickness, 0.35), tailMat);
+        mesh.position.set(0, 0, -0.16);
+        joint.add(mesh);
+
+        parentJoint.add(joint);
+        tailSegments.push(joint);
+        parentJoint = joint;
+    }
+
+    // ================= 4. 狀態變數與 UI 互動 =================
+    let currentPose = 'idle'; // idle, walk, crouch
+    let moveSpeed = 0;        // 0 ~ 100
+    let turnAngle = 0;        // -60 ~ 60
+    let moodLevel = 50;       // 10 ~ 100
+
+    // 物理延遲平滑變數 (讓尾巴產生慣性跟隨效果)
+    let smoothTurn = 0;
+    let smoothSpeed = 0;
+    let smoothPitch = 0.2;
+
+    const speedSlider = document.getElementById('speedSlider');
+    const turnSlider = document.getElementById('turnSlider');
+    const moodSlider = document.getElementById('moodSlider');
+
+    speedSlider.oninput = (e) => {
+        moveSpeed = parseFloat(e.target.value);
+        document.getElementById('speedVal').innerText = moveSpeed;
+    };
+    turnSlider.oninput = (e) => {
+        turnAngle = parseFloat(e.target.value);
+        document.getElementById('turnVal').innerText = turnAngle + '°';
+    };
+    moodSlider.oninput = (e) => {
+        moodLevel = parseFloat(e.target.value);
+        document.getElementById('moodVal').innerText = moodLevel + '%';
+    };
+
+    // 姿態按鈕切換
+    function setPose(pose, btnId) {
+        currentPose = pose;
+        document.querySelectorAll('.btn-group button').forEach(b => b.classList.remove('active'));
+        document.getElementById(btnId).classList.add('active');
+        
+        if (pose === 'walk' && moveSpeed === 0) {
+            moveSpeed = 50;
+            speedSlider.value = 50;
+            document.getElementById('speedVal').innerText = 50;
+        } else if (pose === 'idle') {
+            moveSpeed = 0;
+            speedSlider.value = 0;
+            document.getElementById('speedVal').innerText = 0;
+        }
+    }
+    document.getElementById('poseIdle').onclick = () => setPose('idle', 'poseIdle');
+    document.getElementById('poseWalk').onclick = () => setPose('walk', 'poseWalk');
+    document.getElementById('poseCrouch').onclick = () => setPose('crouch', 'poseCrouch');
+
+    // ================= 5. ESP32 BLE 藍牙同步模組 =================
     const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
     const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    let bleCharacteristic = null;
+    let lastBleSendTime = 0;
 
-    let bleDevice;
-    let bleCharacteristic;
-
-    const connectBtn = document.getElementById('connectBtn');
-    const onBtn = document.getElementById('onBtn');
-    const offBtn = document.getElementById('offBtn');
-    const statusText = document.getElementById('status');
-
-    // 1. 連線藍牙裝置
-    connectBtn.addEventListener('click', async () => {
+    document.getElementById('bleBtn').addEventListener('click', async () => {
         try {
-            statusText.innerText = "狀態：正在搜尋裝置...";
-            
-            // 請求瀏覽器跳出藍牙配對視窗
-            bleDevice = await navigator.bluetooth.requestDevice({
+            const device = await navigator.bluetooth.requestDevice({
                 filters: [{ name: 'ESP32_Web_Controller' }],
                 optionalServices: [SERVICE_UUID]
             });
-
-            // 監聽斷線事件
-            bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
-
-            statusText.innerText = "狀態：連線中...";
-            const server = await bleDevice.gatt.connect();
+            const server = await device.gatt.connect();
             const service = await server.getPrimaryService(SERVICE_UUID);
             bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-
-            // 更新 UI 狀態
-            statusText.innerText = `狀態：已連線至 ${bleDevice.name}`;
-            connectBtn.innerText = "已連線";
-            connectBtn.disabled = true;
-            onBtn.disabled = false;
-            offBtn.disabled = false;
-
-        } catch (error) {
-            console.error(error);
-            statusText.innerText = "狀態：連線取消或失敗";
+            
+            const btn = document.getElementById('bleBtn');
+            btn.innerText = "已連線 ESP32-C3 (即時同步中)";
+            btn.classList.add('connected');
+        } catch (err) {
+            console.log("藍牙連線取消或失敗:", err);
         }
     });
 
-    // 2. 傳送資料到 ESP32
-    async function sendCommand(cmd) {
+    async function sendTailToESP32(yawDeg, pitchDeg) {
         if (!bleCharacteristic) return;
+        const now = Date.now();
+        // 限制每 80ms 傳送一次，避免塞爆藍牙緩衝區
+        if (now - lastBleSendTime < 80) return; 
+        lastBleSendTime = now;
+
         try {
-            const encoder = new TextEncoder(); // 將字串轉為 Uint8Array 位元組
-            await bleCharacteristic.writeValue(encoder.encode(cmd));
-            console.log(`已傳送: ${cmd}`);
-        } catch (error) {
-            console.error("傳送失敗:", error);
-            statusText.innerText = "狀態：指令傳送失敗";
+            const payload = `${yawDeg},${pitchDeg}`; // 格式: "水平角度,垂直角度"
+            await bleCharacteristic.writeValue(new TextEncoder().encode(payload));
+        } catch (e) {
+            console.error(e);
         }
     }
 
-    // 3. 斷線處理
-    function onDisconnected() {
-        statusText.innerText = "狀態：裝置已斷線";
-        connectBtn.innerText = "搜尋並連線 ESP32";
-        connectBtn.disabled = false;
-        onBtn.disabled = true;
-        offBtn.disabled = true;
+    // ================= 6. 動畫與物理連動主迴圈 =================
+    const clock = new THREE.Clock();
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const t = clock.getElapsedTime();
+
+        // A. 更新人物模型姿態
+        const targetRotationY = THREE.MathUtils.degToRad(turnAngle);
+        characterGroup.rotation.y += (targetRotationY - characterGroup.rotation.y) * 0.1;
+
+        // 根據姿態調整身體高度與前傾角
+        let targetHeight = 1.1;
+        let targetTilt = (moveSpeed / 100) * 0.35; // 跑越快身體越前傾
+        if (currentPose === 'crouch') {
+            targetHeight = 0.85;
+            targetTilt = 0.45;
+        }
+        torso.position.y += (targetHeight - torso.position.y) * 0.1;
+        head.position.y = torso.position.y + 0.85;
+        characterGroup.rotation.x += (targetTilt - characterGroup.rotation.x) * 0.1;
+
+        // 腿部擺動與地板捲動模擬前進
+        if (moveSpeed > 0) {
+            const strideFreq = 4 + (moveSpeed / 100) * 10;
+            const strideAmp = 0.2 + (moveSpeed / 100) * 0.6;
+            leftLeg.rotation.x = Math.sin(t * strideFreq) * strideAmp;
+            rightLeg.rotation.x = -Math.sin(t * strideFreq) * strideAmp;
+            gridHelper.position.z = (t * (moveSpeed * 0.08)) % 1; // 地板往後移動產生前進感
+        } else {
+            leftLeg.rotation.x *= 0.85;
+            rightLeg.rotation.x *= 0.85;
+        }
+
+        // B. 計算虛擬尾巴與人物移動的物理連動 (阻尼追蹤)
+        smoothTurn += (turnAngle - smoothTurn) * 0.06;   // 轉向慣性延遲
+        smoothSpeed += (moveSpeed - smoothSpeed) * 0.08; // 速度慣性延遲
+
+        // 1. 水平擺動 (Yaw)：基礎搖擺 + 轉彎時的反向離心力甩尾
+        const wagFreq = 2.5 + (moodLevel / 100) * 4.5 + (smoothSpeed / 100) * 4;
+        const wagAmp = (moodLevel / 100) * 0.35;
+        const centrifugalYaw = -THREE.MathUtils.degToRad(smoothTurn) * 0.65; // 往左轉時尾巴往右甩
+        const baseYaw = Math.sin(t * wagFreq) * wagAmp + centrifugalYaw;
+
+        // 2. 垂直俯仰 (Pitch)：待機時微翹，跑步時因風阻向後壓低，警戒蹲下時壓更低
+        let targetPitch = 0.25 - (smoothSpeed / 100) * 0.55;
+        if (currentPose === 'crouch') targetPitch = -0.35;
+        smoothPitch += (targetPitch - smoothPitch) * 0.08;
+
+        // 將動作套用到尾巴的每一節關節（越靠近尾端延遲越明顯，產生波浪鞭打感）
+        tailSegments.forEach((segment, index) => {
+            const phaseDelay = index * 0.35; // 關節間的相位延遲
+            const segmentWag = Math.sin(t * wagFreq - phaseDelay) * (wagAmp * 0.6);
+            segment.rotation.y = (baseYaw / segmentCount) * 1.4 + segmentWag * 0.3;
+            segment.rotation.x = (smoothPitch / segmentCount) * 1.3 + Math.cos(t * wagFreq - phaseDelay) * 0.04;
+        });
+
+        // C. 轉換為實體舵機角度 (0° ~ 180°，90° 為正後方置中)
+        const servoYaw = Math.round(THREE.MathUtils.clamp(90 + THREE.MathUtils.radToDeg(baseYaw) * 1.5, 10, 170));
+        const servoPitch = Math.round(THREE.MathUtils.clamp(90 + THREE.MathUtils.radToDeg(smoothPitch) * 1.5, 20, 160));
+        
+        document.getElementById('telemetry').innerText = `舵機輸出角度 -> 水平: ${servoYaw}° | 垂直: ${servoPitch}°`;
+        sendTailToESP32(servoYaw, servoPitch);
+
+        renderer.render(scene, camera);
     }
 
-    onBtn.addEventListener('click', () => sendCommand("1"));
-    offBtn.addEventListener('click', () => sendCommand("0"));
-</script>
+    // 視窗縮放自適應
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
 
+    animate();
+</script>
 </body>
 </html>
