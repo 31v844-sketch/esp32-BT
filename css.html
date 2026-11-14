@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WASD 互動式機械尾巴驅動人物系統 (支援 ESP32 BLE)</title>
+    <title>WASD 互動式機械尾巴驅動人物系統 (ESP32 BLE)</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -156,10 +156,7 @@
             font-weight: bold;
             letter-spacing: 0.5px;
         }
-        .key-row {
-            display: flex;
-            gap: 8px;
-        }
+        .key-row { display: flex; gap: 8px; }
         .key-cap {
             width: 54px;
             height: 54px;
@@ -249,8 +246,8 @@
     </div>
 
     <div class="badge-mode">
-        <strong>主控模式：尾巴驅動人物</strong><br>
-        使用 <b>WASD</b> 控制右側機械尾巴擺動，尾巴產生的慣性與反作用力矩將主動帶動左側人物傾斜與重心轉移！
+        <strong>主控模式：尾巴驅動人物 (標準版 ESP32)</strong><br>
+        使用 <b>WASD</b> 控制右側機械尾巴擺動，尾巴產生的反作用力矩將主動帶動左側人物傾斜與重心轉移！
     </div>
 
     <div class="btn-group">
@@ -286,11 +283,11 @@
         <input type="range" id="couplingSlider" min="0.4" max="2.0" step="0.1" value="1.0">
     </div>
 
-    <button id="bleBtn">連線 ESP32-C3 同步實體尾巴</button>
+    <button id="bleBtn">連線 ESP32 同步實體尾巴</button>
     <div id="telemetry">
         系統狀態：待機靜止 (中立位)<br>
         人物受迫傾斜 -> 側傾: 0.0° | 俯仰: 0.0°<br>
-        舵機輸出 -> 水平: 90° | 垂直: 90°
+        ESP32 舵機 -> Pan(GPIO18): 90° | Tilt(GPIO19): 90°
     </div>
 </div>
 
@@ -338,8 +335,8 @@
             • 按住 <b>Q / E</b>：即時縮短或伸長尾巴，體驗力臂長度對人物傾斜幅度的影響。
         </div>
         <div class="step-box">
-            <strong>體重與身高的物理慣性差異</strong><br>
-            試著將人物體重調低（如 <code>45 kg</code>），會發現尾巴輕輕一甩就能大幅帶動人物傾斜；調高體重（如 <code>110 kg</code>）時，人物慣性增大，需要更長、更大幅度的尾巴擺動才能改變其姿態。
+            <strong>隔空連線標準版 ESP32 與 MG996R 舵機</strong><br>
+            點擊「連線 ESP32 同步實體尾巴」並選擇 <code>ESP32_Tail_Controller</code>，網頁會即時把角度傳送至 ESP32 的 <code>GPIO 18</code>（Pan）與 <code>GPIO 19</code>（Tilt）。
         </div>
         <div class="modal-actions">
             <button id="demoTourBtn">啟動尾巴自動演示 (Demo)</button>
@@ -610,29 +607,26 @@
         }
     }
 
-    // 力量傳導線 (從右側尾巴指向左側人物)
     const linkGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(1.3, 0.95, 0.4), new THREE.Vector3(-1.3, 0.95, 0)]);
     scene.add(new THREE.Line(linkGeo, new THREE.LineBasicMaterial({ color: 0x00f5d4, transparent: true, opacity: 0.45 })));
 
     // ================= 4. WASD 鍵盤與 UI 互動控制 =================
-    let targetTailYaw = 0;   // 尾巴主動水平角 (-65 ~ +65 度，負=左甩，正=右甩)
-    let targetTailPitch = 0; // 尾巴主動俯仰角 (-45 ~ +45 度，正=上抬，負=下壓)
-    let tailLengthPct = 100; // 尾巴長度 (30% ~ 150%)
+    let targetTailYaw = 0;
+    let targetTailPitch = 0;
+    let tailLengthPct = 100;
     let userHeight = 170;
     let userWeight = 65;
     let couplingGain = 1.0;
 
-    let holdTailPosition = false; // 是否保持當前尾巴角度（不自動回彈）
+    let holdTailPosition = false;
     let isDemoPlaying = false;
 
-    // 物理平滑狀態變數
     let currentTailYaw = 0;
     let currentTailPitch = 0;
-    let charRoll = 0;       // 人物被尾巴帶動的側傾角
-    let charPitch = 0;      // 人物被尾巴帶動的前後傾角
-    let charTurnYaw = 0;    // 人物受角動量反作用力產生的微幅轉向
+    let charRoll = 0;
+    let charPitch = 0;
+    let charTurnYaw = 0;
 
-    // 按鍵狀態追蹤
     const keysPressed = { w: false, a: false, s: false, d: false, q: false, e: false };
 
     const tailYawSlider = document.getElementById('tailYawSlider');
@@ -661,7 +655,6 @@
         updateTailExtension(tailLengthPct);
     }
 
-    // 鍵盤按下與放開監聽
     function setKeyVisual(key, state) {
         const el = document.getElementById('key-' + key);
         if (el) {
@@ -672,7 +665,7 @@
 
     window.addEventListener('keydown', (e) => {
         const k = e.key.toLowerCase();
-        if (k === ' ' ) {
+        if (k === ' ') {
             e.preventDefault();
             resetAll();
             return;
@@ -694,7 +687,6 @@
         }
     });
 
-    // 螢幕虛擬按鍵支援滑鼠與觸控長按
     document.querySelectorAll('.key-cap').forEach(btn => {
         const k = btn.dataset.key;
         const press = (e) => { e.preventDefault(); isDemoPlaying = false; keysPressed[k] = true; setKeyVisual(k, true); };
@@ -738,41 +730,50 @@
 
     syncAllUI();
 
-    // ================= 5. ESP32 BLE 藍牙同步模組 =================
+    // ================= 5. 標準版 ESP32 BLE 藍牙同步模組 =================
     const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
     const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
     let bleCharacteristic = null;
     let lastBleSendTime = 0;
 
     document.getElementById('bleBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('bleBtn');
         try {
             const device = await navigator.bluetooth.requestDevice({
-                filters: [{ name: 'ESP32_Web_Controller' }],
+                filters: [{ name: 'ESP32_Tail_Controller' }],
                 optionalServices: [SERVICE_UUID]
             });
+
+            device.addEventListener('gattserverdisconnected', () => {
+                bleCharacteristic = null;
+                btn.innerText = "連線 ESP32 同步實體尾巴 (已斷線，點擊重連)";
+                btn.classList.remove('connected');
+            });
+
             const server = await device.gatt.connect();
             const service = await server.getPrimaryService(SERVICE_UUID);
             bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
             
-            const btn = document.getElementById('bleBtn');
-            btn.innerText = "已連線 ESP32-C3 (即時同步中)";
+            btn.innerText = "已隔空連線 ESP32 (即時同步中)";
             btn.classList.add('connected');
         } catch (err) {
             console.log("藍牙連線取消或失敗:", err);
         }
     });
 
-    async function sendTailToESP32(yawDeg, pitchDeg) {
+    async function sendTailToESP32(panDeg, tiltDeg) {
         if (!bleCharacteristic) return;
         const now = Date.now();
-        if (now - lastBleSendTime < 60) return; 
+        if (now - lastBleSendTime < 55) return; 
         lastBleSendTime = now;
 
         try {
-            const payload = `${yawDeg},${pitchDeg}`;
-            await bleCharacteristic.writeValue(new TextEncoder().encode(payload));
+            const payload = `${panDeg},${tiltDeg}`;
+            await bleCharacteristic.writeValueWithoutResponse(new TextEncoder().encode(payload));
         } catch (e) {
-            console.error(e);
+            try {
+                await bleCharacteristic.writeValue(new TextEncoder().encode(`${panDeg},${tiltDeg}`));
+            } catch (err2) {}
         }
     }
 
@@ -783,7 +784,6 @@
         requestAnimationFrame(animate);
         const t = clock.getElapsedTime();
 
-        // 1. 處理 WASD + QE 連續按鍵輸入
         const steerSpeed = 2.4;
         const stretchSpeed = 1.6;
         let anyDirKey = false;
@@ -795,7 +795,6 @@
         if (keysPressed.q) { tailLengthPct = THREE.MathUtils.clamp(tailLengthPct - stretchSpeed, 30, 150); }
         if (keysPressed.e) { tailLengthPct = THREE.MathUtils.clamp(tailLengthPct + stretchSpeed, 30, 150); }
 
-        // 鬆開 WASD 且未開啟「保持角度」時，尾巴平滑回彈歸零
         if (!anyDirKey && !holdTailPosition && !isDemoPlaying) {
             targetTailYaw *= 0.90;
             targetTailPitch *= 0.90;
@@ -803,7 +802,6 @@
             if (Math.abs(targetTailPitch) < 0.2) targetTailPitch = 0;
         }
 
-        // 自動演示模式
         if (isDemoPlaying) {
             targetTailYaw = Math.sin(t * 1.6) * 55;
             targetTailPitch = Math.cos(t * 0.9) * 25;
@@ -814,7 +812,6 @@
             syncAllUI();
         }
 
-        // 2. 更新右側機械尾巴實體角度 (主動動力源)
         currentTailYaw += (targetTailYaw - currentTailYaw) * 0.18;
         currentTailPitch += (targetTailPitch - currentTailPitch) * 0.18;
 
@@ -827,32 +824,25 @@
             segment.rotation.x = totalPitchRad * weight;
         });
 
-        // 3. 計算機械尾巴對左側人物產生的「反作用力矩與重心改變」
-        // 尾巴越長 (tailLengthPct 越大) -> 轉動力臂越大，對人的影響力越強
         const tailLeverArm = Math.pow(tailLengthPct / 100, 1.15);
-        // 人物體重越輕 (65 / userWeight) -> 越容易被尾巴甩動帶偏
         const bodyMobility = (65 / userWeight) * Math.pow(userHeight / 170, 0.6);
         const influenceRatio = 0.55 * couplingGain * tailLeverArm * bodyMobility;
 
-        // 當尾巴往左甩 (currentTailYaw < 0)，質心往左移且產生力矩，帶動人物向左側傾並微幅左轉
         const drivenRollDeg = THREE.MathUtils.clamp(currentTailYaw * influenceRatio, -42, 42);
-        // 當尾巴上抬 (currentTailPitch > 0)，反作用力矩使人物上身向後仰 (charPitch < 0)；尾巴下壓則使人物前傾
         const drivenPitchDeg = THREE.MathUtils.clamp(-currentTailPitch * influenceRatio * 0.75, -30, 30);
-        // 甩尾產生的角動量使人物產生微幅水平旋轉反應
         const drivenTurnDeg = THREE.MathUtils.clamp(-currentTailYaw * influenceRatio * 0.35, -25, 25);
 
         charRoll += (drivenRollDeg - charRoll) * 0.12;
         charPitch += (drivenPitchDeg - charPitch) * 0.12;
         charTurnYaw += (drivenTurnDeg - charTurnYaw) * 0.12;
 
-        // 套用受迫姿態到左側人物模型
         pivotGroup.rotation.z = -THREE.MathUtils.degToRad(charRoll);
         pivotGroup.rotation.x = THREE.MathUtils.degToRad(charPitch);
         pivotGroup.rotation.y = THREE.MathUtils.degToRad(charTurnYaw);
 
-        // 4. 輸出舵機角度給 ESP32-C3 (0° ~ 180°，90° 為中立位)
-        const servoYaw = Math.round(THREE.MathUtils.clamp(90 + currentTailYaw, 10, 170));
-        const servoPitch = Math.round(THREE.MathUtils.clamp(90 + currentTailPitch, 20, 160));
+        // 輸出舵機角度給標準版 ESP32 (0° ~ 180°，90° 為中立位)
+        const servoPan = Math.round(THREE.MathUtils.clamp(90 + currentTailYaw, 0, 180));
+        const servoTilt = Math.round(THREE.MathUtils.clamp(90 + currentTailPitch, 0, 180));
 
         const isIdle = Math.abs(currentTailYaw) < 0.3 && Math.abs(currentTailPitch) < 0.3;
         const statusText = isIdle 
@@ -862,9 +852,9 @@
         document.getElementById('telemetry').innerHTML = 
             `狀態：${statusText}<br>` +
             `人物被動姿態 -> 側傾: ${charRoll.toFixed(1)}° | 俯仰: ${charPitch.toFixed(1)}°<br>` +
-            `ESP32 舵機 -> 水平: ${servoYaw}° | 垂直: ${servoPitch}°`;
+            `ESP32 舵機 -> Pan(GPIO18): ${servoPan}° | Tilt(GPIO19): ${servoTilt}°`;
 
-        sendTailToESP32(servoYaw, servoPitch);
+        sendTailToESP32(servoPan, servoTilt);
         renderer.render(scene, camera);
     }
 
