@@ -14,7 +14,6 @@
             color: white;
             user-select: none;
         }
-        /* 左側主控制面板 */
         #ui-panel {
             position: absolute;
             top: 14px;
@@ -103,7 +102,6 @@
             line-height: 1.5;
         }
 
-        /* 右上角：全方向觀察視角列 */
         #camera-panel {
             position: absolute;
             top: 14px;
@@ -122,7 +120,6 @@
         .cam-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
         .cam-grid button { padding: 6px 8px; font-size: 12px; }
 
-        /* 導覽教學彈出視窗 */
         #guideModal {
             display: none;
             position: fixed;
@@ -162,7 +159,6 @@
 </head>
 <body>
 
-<!-- 左側控制面板 -->
 <div id="ui-panel">
     <div class="header-row">
         <h3>重心平衡機械尾巴系統</h3>
@@ -212,7 +208,6 @@
     </div>
 </div>
 
-<!-- 右上角：全方向觀察視角列 -->
 <div id="camera-panel">
     <div class="cam-title">全方向觀察視角 (可滑鼠拖曳/滾輪縮放)</div>
     <div class="cam-grid">
@@ -225,7 +220,6 @@
     </div>
 </div>
 
-<!-- 導覽教學與演示視窗 -->
 <div id="guideModal">
     <div class="modal-card">
         <h2>系統使用導覽與物理模擬說明</h2>
@@ -235,7 +229,7 @@
         </div>
         <div class="step-box">
             <strong>步驟 2：調整身高與體重模型</strong><br>
-            拖動「人物身高」與「人物體重」滑桿，左側 3D 模型體型與綠色重心球體會即時變化。身高越高或體重越重，傾倒時產生的力矩越大，尾巴會自動加快反應速度並加大甩動幅度。
+            拖動「人物身高」與「人物體重」滑桿，左側專屬 3D 人物模型體型與綠色重心球體會即時變化。身高越高或體重越重，傾倒時產生的力矩越大，尾巴會自動加快反應速度並加大甩動幅度。
         </div>
         <div class="step-box">
             <strong>步驟 3：控制機械尾巴伸縮</strong><br>
@@ -261,29 +255,28 @@
 
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
     let camAngleY = 0.35;
-    let camAngleX = 0.35;
-    let camDist = 5.8;
+    let camAngleX = 0.32;
+    let camDist = 5.6;
 
     function updateCameraPosition() {
         camera.position.x = camDist * Math.sin(camAngleY) * Math.cos(camAngleX);
         camera.position.y = 1.1 + camDist * Math.sin(camAngleX);
         camera.position.z = camDist * Math.cos(camAngleY) * Math.cos(camAngleX);
-        camera.lookAt(0, 1.0, 0);
+        camera.lookAt(0, 1.05, 0);
     }
     updateCameraPosition();
 
-    // 一鍵切換全方向視角
     window.setCameraView = function(view) {
         document.querySelectorAll('#camera-panel button').forEach(b => b.classList.remove('active'));
         if (event && event.target) event.target.classList.add('active');
 
         switch(view) {
-            case 'front': camAngleY = 0; camAngleX = 0.15; camDist = 5.5; break;
-            case 'back':  camAngleY = Math.PI; camAngleX = 0.2; camDist = 5.5; break;
-            case 'left':  camAngleY = -Math.PI / 2; camAngleX = 0.15; camDist = 5.5; break;
-            case 'right': camAngleY = Math.PI / 2; camAngleX = 0.15; camDist = 5.5; break;
-            case 'top':   camAngleY = 0; camAngleX = 1.45; camDist = 6.2; break;
-            case 'iso':   camAngleY = 0.35; camAngleX = 0.35; camDist = 5.8; break;
+            case 'front': camAngleY = 0; camAngleX = 0.15; camDist = 5.2; break;
+            case 'back':  camAngleY = Math.PI; camAngleX = 0.2; camDist = 5.2; break;
+            case 'left':  camAngleY = -Math.PI / 2; camAngleX = 0.15; camDist = 5.2; break;
+            case 'right': camAngleY = Math.PI / 2; camAngleX = 0.15; camDist = 5.2; break;
+            case 'top':   camAngleY = 0; camAngleX = 1.45; camDist = 6.0; break;
+            case 'iso':   camAngleY = 0.35; camAngleX = 0.32; camDist = 5.6; break;
         }
         updateCameraPosition();
     };
@@ -292,7 +285,6 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // 滑鼠拖曳旋轉 + 滾輪縮放
     let isDragging = false, prevX = 0, prevY = 0;
     renderer.domElement.addEventListener('mousedown', (e) => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
     window.addEventListener('mouseup', () => isDragging = false);
@@ -308,66 +300,276 @@
         updateCameraPosition();
     });
 
-    // 燈光與地板網格
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-    dirLight.position.set(5, 12, 6);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.78));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+    dirLight.position.set(5, 12, 7);
     scene.add(dirLight);
 
     const gridHelper = new THREE.GridHelper(16, 16, 0x4cc9f0, 0x232946);
     scene.add(gridHelper);
 
-    // ================= 2. 左側：可變體型人物模型 (X = -1.3) =================
+    // ================= 2. 客製化人物建模 (還原穿搭與造型) =================
     const charRoot = new THREE.Group();
     charRoot.position.set(-1.3, 0, 0);
     scene.add(charRoot);
 
-    // 垂直基準線
+    // 垂直重心基準線
     const refLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 2.8, 0)]);
     charRoot.add(new THREE.Line(refLineGeo, new THREE.LineBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.4 })));
 
     const pivotGroup = new THREE.Group(); // 人物傾斜支點
     charRoot.add(pivotGroup);
 
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3a86ff, roughness: 0.4 });
-    const headMat = new THREE.MeshStandardMaterial({ color: 0x90e0ef, roughness: 0.3 });
-    const comMat = new THREE.MeshBasicMaterial({ color: 0x00ff88 }); // 重心指示球
+    // 1. 動態生成米白 T-Shirt 胸前復古球鞋印花紋理
+    function createShirtTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
 
-    const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.75, 0.22), bodyMat);
-    const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.75, 0.22), bodyMat);
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.75, 1.0, 0.38), bodyMat);
-    const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.85, 0.18), bodyMat);
-    const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.85, 0.18), bodyMat);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), headMat);
-    const comSphere = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 16), comMat); // 顯示身體質心位置
+        // 米白色棉質底色
+        ctx.fillStyle = '#f5f2e9';
+        ctx.fillRect(0, 0, 512, 512);
 
-    pivotGroup.add(leftLeg, rightLeg, torso, leftArm, rightArm, head, comSphere);
+        // 胸前印花外框 (紅黃復古貼紙風)
+        ctx.fillStyle = '#f9c74f';
+        ctx.fillRect(156, 110, 200, 145);
+        ctx.strokeStyle = '#d62828';
+        ctx.lineWidth = 6;
+        ctx.strokeRect(156, 110, 200, 145);
+
+        // 復古運動鞋剪影
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(185, 205);
+        ctx.lineTo(325, 205);
+        ctx.lineTo(318, 175);
+        ctx.lineTo(270, 165);
+        ctx.lineTo(240, 148);
+        ctx.lineTo(195, 172);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#1d3557';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        // 鞋身紅色裝飾與品牌字樣
+        ctx.fillStyle = '#d62828';
+        ctx.fillRect(185, 202, 140, 10);
+        ctx.font = 'bold 28px sans-serif';
+        ctx.fillText('N', 242, 193);
+
+        ctx.fillStyle = '#1d3557';
+        ctx.font = 'bold 18px sans-serif';
+        ctx.fillText('New Balance', 175, 134);
+
+        ctx.fillStyle = '#d62828';
+        ctx.fillRect(166, 224, 180, 20);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('CLASSIC RUNNING 574', 182, 238);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        return tex;
+    }
+
+    // 2. 動態生成臉部表情紋理 (微微笑容與眉眼)
+    function createFaceTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+
+        // 自然暖膚色
+        ctx.fillStyle = '#f1c29b';
+        ctx.fillRect(0, 0, 256, 256);
+
+        // 眉毛
+        ctx.strokeStyle = '#1f1f24';
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(74, 118); ctx.quadraticCurveTo(92, 112, 108, 118); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(148, 118); ctx.quadraticCurveTo(164, 112, 182, 118); ctx.stroke();
+
+        // 眼睛
+        ctx.fillStyle = '#18181b';
+        ctx.beginPath(); ctx.ellipse(92, 134, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(164, 134, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
+
+        // 鼻子陰影
+        ctx.strokeStyle = '#d49a6a';
+        ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(128, 138); ctx.lineTo(125, 162); ctx.lineTo(132, 165); ctx.stroke();
+
+        // 抿嘴微笑
+        ctx.strokeStyle = '#9e5a4a';
+        ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(106, 188); ctx.quadraticCurveTo(128, 196, 150, 188); ctx.stroke();
+
+        return new THREE.CanvasTexture(canvas);
+    }
+
+    // 材質定義
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf1c29b, roughness: 0.55 });
+    const hairMat = new THREE.MeshStandardMaterial({ color: 0x18181c, roughness: 0.7 });
+    const shirtFrontMat = new THREE.MeshStandardMaterial({ map: createShirtTexture(), roughness: 0.8 });
+    const shirtPlainMat = new THREE.MeshStandardMaterial({ color: 0xf5f2e9, roughness: 0.8 });
+    const shortsMat = new THREE.MeshStandardMaterial({ color: 0x26282c, roughness: 0.85 });
+    const sockMat = new THREE.MeshStandardMaterial({ color: 0xf8f9fa, roughness: 0.75 });
+    const sockLogoMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+    const comMat = new THREE.MeshBasicMaterial({ color: 0x00ff88 });
+
+    // 建立各部位群組方便動態縮放
+    const leftLegGroup = new THREE.Group();
+    const rightLegGroup = new THREE.Group();
+    const torsoGroup = new THREE.Group();
+    const leftArmGroup = new THREE.Group();
+    const rightArmGroup = new THREE.Group();
+    const headGroup = new THREE.Group();
+    const comSphere = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 16), comMat);
+
+    // 構築雙腿 (炭灰短褲管 + 膚色小腿 + 白色中筒襪 + 襪腳)
+    function buildLeg(group, side) {
+        // 短褲褲管
+        const shortPant = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.14, 0.36, 16), shortsMat);
+        shortPant.position.y = 0.62;
+        group.add(shortPant);
+
+        // 小腿膚色
+        const calf = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.095, 0.26, 16), skinMat);
+        calf.position.y = 0.32;
+        group.add(calf);
+
+        // 白色中筒襪筒
+        const sockTube = new THREE.Mesh(new THREE.CylinderGeometry(0.098, 0.092, 0.18, 16), sockMat);
+        sockTube.position.y = 0.11;
+        group.add(sockTube);
+
+        // 襪側黑色小標誌
+        const logo = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.025, 0.03), sockLogoMat);
+        logo.position.set(side * 0.095, 0.16, 0.02);
+        group.add(logo);
+
+        // 白色襪腳掌 (微外八自然站姿)
+        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.07, 0.30), sockMat);
+        foot.position.set(0, 0.035, 0.07);
+        foot.rotation.y = side * -0.14;
+        group.add(foot);
+    }
+    buildLeg(leftLegGroup, -1);
+    buildLeg(rightLegGroup, 1);
+
+    // 構築軀幹 (米白寬鬆 T-Shirt + 圓領 + 炭灰短褲腰部)
+    const shirtMaterials = [
+        shirtPlainMat, // 右側
+        shirtPlainMat, // 左側
+        shirtPlainMat, // 頂部
+        shirtPlainMat, // 底部
+        shirtFrontMat, // 正面 (帶印花圖案)
+        shirtPlainMat  // 背面
+    ];
+    const shirtBody = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.88, 0.38), shirtMaterials);
+    shirtBody.position.y = 0.12;
+    torsoGroup.add(shirtBody);
+
+    // T-Shirt 圓領口
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.03, 10, 24), shirtPlainMat);
+    collar.rotation.x = Math.PI / 2;
+    collar.position.set(0, 0.56, 0.02);
+    torsoGroup.add(collar);
+
+    // 短褲褲頭腰部
+    const shortsWaist = new THREE.Mesh(new THREE.BoxGeometry(0.70, 0.24, 0.35), shortsMat);
+    shortsWaist.position.y = -0.38;
+    torsoGroup.add(shortsWaist);
+
+    // 構築雙臂 (米白寬鬆短袖 + 膚色前臂 + 手掌)
+    function buildArm(group, side) {
+        // 寬鬆短袖袖管
+        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.145, 0.34, 16), shirtPlainMat);
+        sleeve.position.y = 0.22;
+        sleeve.rotation.z = side * 0.08;
+        group.add(sleeve);
+
+        // 膚色前臂
+        const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.078, 0.42, 16), skinMat);
+        forearm.position.set(side * 0.02, -0.14, 0.02);
+        group.add(forearm);
+
+        // 手掌
+        const hand = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.11), skinMat);
+        hand.position.set(side * 0.02, -0.40, 0.03);
+        group.add(hand);
+    }
+    buildArm(leftArmGroup, -1);
+    buildArm(rightArmGroup, 1);
+
+    // 構築頭部 (脖子 + 臉部貼圖頭型 + 中分微蓋額黑髮)
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.115, 0.16, 16), skinMat);
+    neck.position.y = -0.22;
+    headGroup.add(neck);
+
+    const headMaterials = [
+        skinMat, // 右側
+        skinMat, // 左側
+        hairMat, // 頭頂
+        skinMat, // 下巴
+        new THREE.MeshStandardMaterial({ map: createFaceTexture(), roughness: 0.55 }), // 正面五官
+        hairMat  // 後腦勺
+    ];
+    const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.46, 0.42), headMaterials);
+    headGroup.add(headMesh);
+
+    // 髮頂與後腦蓬鬆黑髮
+    const hairTop = new THREE.Mesh(new THREE.SphereGeometry(0.26, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.58), hairMat);
+    hairTop.scale.set(1.02, 0.85, 1.05);
+    hairTop.position.set(0, 0.08, -0.01);
+    headGroup.add(hairTop);
+
+    // 左側瀏海 (微蓋眉毛)
+    const bangLeft = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.15, 0.06), hairMat);
+    bangLeft.position.set(-0.105, 0.15, 0.21);
+    bangLeft.rotation.z = 0.08;
+    headGroup.add(bangLeft);
+
+    // 右側瀏海 (微蓋眉毛，中間留出自然微中分縫隙)
+    const bangRight = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.14, 0.06), hairMat);
+    bangRight.position.set(0.11, 0.155, 0.21);
+    bangRight.rotation.z = -0.08;
+    headGroup.add(bangRight);
+
+    // 側邊鬢角
+    const sideburnL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.22, 0.28), hairMat);
+    sideburnL.position.set(-0.21, 0.05, -0.04);
+    const sideburnR = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.22, 0.28), hairMat);
+    sideburnR.position.set(0.21, 0.05, -0.04);
+    headGroup.add(sideburnL, sideburnR);
+
+    pivotGroup.add(leftLegGroup, rightLegGroup, torsoGroup, leftArmGroup, rightArmGroup, headGroup, comSphere);
 
     // 根據身高與體重即時重塑人物模型比例
     function updateCharacterBodyModel(heightCm, weightKg) {
-        const hScale = heightCm / 170; // 基準 170cm = 1.0
-        const wScale = 0.75 + ((weightKg - 40) / 80) * 0.65; // 40kg~120kg 對應寬厚比例
+        const hScale = heightCm / 170;
+        const wScale = 0.78 + ((weightKg - 40) / 80) * 0.62;
 
-        const legH = 0.75 * hScale;
-        const torsoH = 1.0 * hScale;
-        const torsoW = 0.72 * wScale;
-        const torsoD = 0.36 * wScale;
+        const legH = 0.80 * hScale;
+        const torsoH = 0.92 * hScale;
 
-        leftLeg.scale.set(wScale * 0.9, hScale, wScale * 0.9);
-        rightLeg.scale.set(wScale * 0.9, hScale, wScale * 0.9);
-        leftLeg.position.set(-0.18 * wScale, legH / 2, 0);
-        rightLeg.position.set(0.18 * wScale, legH / 2, 0);
+        leftLegGroup.scale.set(wScale * 0.92, hScale, wScale * 0.92);
+        rightLegGroup.scale.set(wScale * 0.92, hScale, wScale * 0.92);
+        leftLegGroup.position.set(-0.19 * wScale, 0, 0);
+        rightLegGroup.position.set(0.19 * wScale, 0, 0);
 
-        torso.scale.set(wScale, hScale, wScale);
-        torso.position.y = legH + torsoH / 2;
+        torsoGroup.scale.set(wScale, hScale, wScale);
+        torsoGroup.position.y = legH + torsoH * 0.48;
 
-        leftArm.scale.set(wScale * 0.85, hScale, wScale * 0.85);
-        rightArm.scale.set(wScale * 0.85, hScale, wScale * 0.85);
-        leftArm.position.set(-(torsoW / 2 + 0.14 * wScale), legH + torsoH * 0.52, 0);
-        rightArm.position.set((torsoW / 2 + 0.14 * wScale), legH + torsoH * 0.52, 0);
+        leftArmGroup.scale.set(wScale * 0.88, hScale, wScale * 0.88);
+        rightArmGroup.scale.set(wScale * 0.88, hScale, wScale * 0.88);
+        leftArmGroup.position.set(-(0.44 * wScale), legH + torsoH * 0.58, 0);
+        rightArmGroup.position.set((0.44 * wScale), legH + torsoH * 0.58, 0);
 
-        head.position.y = legH + torsoH + 0.32;
-        comSphere.position.set(0, legH + torsoH * 0.45, torsoD / 2 + 0.08); // 質心標記點
+        headGroup.position.y = legH + torsoH + 0.28;
+        comSphere.position.set(0, legH + torsoH * 0.42, 0.24 * wScale);
     }
 
     // ================= 3. 右側：可伸縮獨立機械尾巴 (X = +1.3) =================
@@ -419,7 +621,6 @@
         parentJoint = joint;
     }
 
-    // 更新機械尾巴伸縮長度 (30% ~ 150%)
     function updateTailExtension(lengthPercent) {
         const ratio = lengthPercent / 100;
         for (let i = 0; i < segmentCount; i++) {
@@ -431,7 +632,6 @@
         }
     }
 
-    // 數據連接線
     const linkGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-1.3, 0.95, 0), new THREE.Vector3(1.3, 0.95, 0.4)]);
     scene.add(new THREE.Line(linkGeo, new THREE.LineBasicMaterial({ color: 0x4cc9f0, transparent: true, opacity: 0.35 })));
 
@@ -500,7 +700,6 @@
         e.target.classList.add('active'); syncAllUI();
     };
 
-    // 導覽視窗與自動演示控制
     const guideModal = document.getElementById('guideModal');
     document.getElementById('guideBtn').onclick = () => { guideModal.style.display = 'flex'; };
     document.getElementById('closeModalBtn').onclick = () => { guideModal.style.display = 'none'; };
@@ -509,7 +708,6 @@
         isDemoPlaying = true;
     };
 
-    // 初始化模型尺寸
     syncAllUI();
 
     // ================= 5. ESP32 BLE 藍牙同步模組 =================
@@ -557,7 +755,6 @@
         requestAnimationFrame(animate);
         const t = clock.getElapsedTime();
 
-        // 若開啟自動演示模式，自動循環示範左右側傾與尾巴伸縮
         if (isDemoPlaying) {
             targetRoll = Math.sin(t * 1.4) * 35;
             targetPitch = Math.cos(t * 0.7) * 10;
@@ -565,27 +762,20 @@
             syncAllUI();
         }
 
-        // 1. 身體重量與高度影響傾倒與響應速度
-        // 體重越重 -> 慣性大但需要更快速的主動補償響應；身高越高 -> 力臂長，力矩越大
-        const heightFactor = userHeight / 170; // 0.82 ~ 1.18
-        const weightFactor = userWeight / 65;  // 0.61 ~ 1.85
+        const heightFactor = userHeight / 170;
+        const weightFactor = userWeight / 65;
         const torqueMultiplier = Math.pow(heightFactor, 1.2) * Math.pow(weightFactor, 0.45);
 
-        // 尾巴放長時力臂變大，所需角度略減；收短時力臂變小，需要更大角度補償
         const tailLeverFactor = 100 / Math.max(tailLengthPct, 30);
         const effectiveGain = balanceGain * torqueMultiplier * Math.pow(tailLeverFactor, 0.35);
-
-        // 響應速度隨體重增加而加快 (0.08 ~ 0.24)
         const responseSpeed = THREE.MathUtils.clamp(0.11 * Math.sqrt(weightFactor), 0.07, 0.25);
 
-        // 2. 更新人物模型傾斜
         currentRoll += (targetRoll - currentRoll) * 0.1;
         currentPitch += (targetPitch - currentPitch) * 0.1;
 
         pivotGroup.rotation.z = -THREE.MathUtils.degToRad(currentRoll);
         pivotGroup.rotation.x = THREE.MathUtils.degToRad(currentPitch);
 
-        // 3. 計算機械尾巴重心平衡補償角度
         const desiredTailYawDeg = currentRoll * effectiveGain; 
         const rollLiftBonus = Math.abs(currentRoll) * 0.25 * torqueMultiplier;
         const desiredTailPitchDeg = (currentPitch * effectiveGain * 0.8) + rollLiftBonus;
@@ -593,7 +783,6 @@
         tailCounterYaw += (desiredTailYawDeg - tailCounterYaw) * responseSpeed;
         tailCounterPitch += (desiredTailPitchDeg - tailCounterPitch) * responseSpeed;
 
-        // 4. 套用至機械尾巴 6 節關節
         const totalYawRad = THREE.MathUtils.degToRad(tailCounterYaw);
         const totalPitchRad = THREE.MathUtils.degToRad(tailCounterPitch);
 
@@ -603,7 +792,6 @@
             segment.rotation.x = totalPitchRad * weight;
         });
 
-        // 5. 輸出舵機角度 (0° ~ 180°，90° 為中立靜止)
         const servoYaw = Math.round(THREE.MathUtils.clamp(90 + tailCounterYaw, 10, 170));
         const servoPitch = Math.round(THREE.MathUtils.clamp(90 + tailCounterPitch, 20, 160));
 
