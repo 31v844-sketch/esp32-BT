@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>雙雲台四舵機機械尾巴與重心即時計算模擬系統</title>
+    <title>雙雲台四舵機機械尾巴與即時重心計算系統 (ESP32 BLE)</title>
     <style>
         * { box-sizing: border-box; }
         body {
             margin: 0;
             overflow: hidden;
             font-family: system-ui, -apple-system, "Microsoft JhengHei", sans-serif;
-            background-color: #101424;
-            color: #f1f5f9;
+            background-color: #121629;
+            color: white;
             user-select: none;
         }
         /* 左側主控制面板 */
@@ -22,16 +22,16 @@
             width: 350px;
             max-height: calc(100vh - 24px);
             overflow-y: auto;
-            background: rgba(16, 20, 36, 0.93);
+            background: rgba(18, 22, 41, 0.93);
             backdrop-filter: blur(10px);
-            padding: 14px;
+            padding: 14px 16px;
             border-radius: 12px;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+            box-shadow: 0 8px 28px rgba(0,0,0,0.6);
             border: 1px solid rgba(0, 245, 212, 0.35);
             z-index: 10;
         }
         #ui-panel::-webkit-scrollbar { width: 5px; }
-        #ui-panel::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        #ui-panel::-webkit-scrollbar-thumb { background: #333b63; border-radius: 4px; }
 
         .header-row {
             display: flex;
@@ -40,169 +40,143 @@
             margin-bottom: 8px;
         }
         h3 { margin: 0; font-size: 14.5px; color: #00f5d4; }
-        .top-btns { display: flex; gap: 5px; }
-        .mini-btn {
+        #guideBtn {
             background: rgba(0, 245, 212, 0.15);
             border: 1px solid #00f5d4;
             color: #00f5d4;
-            padding: 3px 8px;
+            padding: 4px 10px;
             font-size: 11.5px;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
+            flex: none;
         }
-        .mini-btn:hover { background: #00f5d4; color: #000; }
+        #guideBtn:hover { background: #00f5d4; color: #000; }
+
+        .badge-mode {
+            background: rgba(0, 245, 212, 0.1);
+            border: 1px solid rgba(0, 245, 212, 0.28);
+            color: #90e0ef;
+            font-size: 11px;
+            padding: 6px 9px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
 
         .section-title {
             font-size: 11px;
-            color: #38bdf8;
-            font-weight: bold;
+            color: #90e0ef;
             letter-spacing: 0.4px;
             margin: 10px 0 6px 0;
             padding-bottom: 3px;
             border-bottom: 1px solid rgba(255,255,255,0.12);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .control-group { margin-bottom: 8px; }
-        label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 2px; color: #cbd5e1; }
-        label span.val { color: #00f5d4; font-weight: 600; font-family: monospace; }
+        label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 2px; color: #d8dee9; }
+        label span:last-child { color: #00f5d4; font-weight: 600; font-family: monospace; }
 
-        .fine-row {
+        .slider-fine-row {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 5px;
         }
-        .fine-row input[type="range"] { flex: 1; cursor: pointer; accent-color: #00f5d4; margin: 0; }
-        .step-btn {
-            background: #1e293b;
-            border: 1px solid #334155;
-            color: #e2e8f0;
-            font-size: 11px;
-            padding: 2px 5px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-family: monospace;
+        .fine-btn {
             flex: none;
+            width: 34px;
+            padding: 3px 0;
+            font-size: 11px;
+            font-family: monospace;
+            background: #1d2340;
+            border: 1px solid #3c4675;
+            color: #90e0ef;
+            border-radius: 5px;
+            cursor: pointer;
         }
-        .step-btn:hover { background: #00f5d4; color: #000; border-color: #00f5d4; }
+        .fine-btn:hover { background: #00f5d4; color: #000; }
+        input[type="range"] { flex: 1; cursor: pointer; accent-color: #00f5d4; margin: 0; }
 
         .btn-group { display: flex; gap: 6px; margin-bottom: 8px; }
-        button.action-btn {
+        button {
             flex: 1;
             padding: 6px;
             border: none;
             border-radius: 6px;
             font-size: 12px;
             cursor: pointer;
-            background: #1e293b;
+            background: #232946;
             color: white;
             transition: 0.15s;
         }
-        button.action-btn:hover { background: #334155; }
-        button.action-btn.active { background: #00f5d4; color: #000; font-weight: bold; }
+        button:hover { background: #333b63; }
+        button.active { background: #00f5d4; color: #000; font-weight: bold; }
 
         #bleBtn {
             width: 100%;
             padding: 9px;
-            background: #0284c7;
-            color: #fff;
+            background: #00b4d8;
+            color: #000;
             font-weight: bold;
             margin-top: 6px;
             font-size: 12.5px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
         }
-        #bleBtn.connected { background: #10b981; color: #000; }
+        #bleBtn.connected { background: #2ec4b6; color: #000; }
 
-        /* 右上角：視角與顯示切換 */
+        /* 即時物理計算過程儀表板 */
+        #physics-calc-box {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #e2e8f0;
+            background: rgba(8, 11, 24, 0.72);
+            border: 1px solid rgba(76, 201, 240, 0.25);
+            padding: 8px 9px;
+            border-radius: 7px;
+            font-family: "Consolas", "Courier New", monospace;
+            line-height: 1.48;
+        }
+        .calc-header {
+            color: #00f5d4;
+            font-weight: bold;
+            margin-bottom: 3px;
+            border-bottom: 1px dashed rgba(255,255,255,0.15);
+            padding-bottom: 2px;
+        }
+        .calc-highlight { color: #ffd166; }
+        .calc-good { color: #06d6a0; }
+        .calc-warn { color: #ef476f; font-weight: bold; }
+
+        /* 右上角：全方向觀察視角列 */
         #camera-panel {
             position: absolute;
             top: 12px;
             right: 12px;
-            width: 340px;
-            background: rgba(16, 20, 36, 0.92);
+            background: rgba(18, 22, 41, 0.9);
             backdrop-filter: blur(8px);
-            padding: 10px 12px;
+            padding: 9px 11px;
             border-radius: 10px;
-            border: 1px solid rgba(56, 189, 248, 0.3);
+            border: 1px solid rgba(76, 201, 240, 0.25);
             z-index: 10;
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 5px;
         }
-        .cam-title { font-size: 11px; color: #94a3b8; text-align: center; }
-        .cam-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
-        .cam-grid button {
-            padding: 5px 6px;
-            font-size: 11.5px;
-            background: #1e293b;
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .cam-grid button:hover { background: #334155; }
-        .cam-grid button.active { background: #38bdf8; color: #000; font-weight: bold; }
+        #camera-panel .cam-title { font-size: 11px; color: #aaa; text-align: center; }
+        .cam-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+        .cam-grid button { padding: 5px 8px; font-size: 11.5px; }
 
-        /* 右側中間：即時重心與無尾巴對照計算過程面板 */
-        #math-panel {
-            position: absolute;
-            top: 118px;
-            right: 12px;
-            width: 340px;
-            max-height: calc(100vh - 310px);
-            overflow-y: auto;
-            background: rgba(16, 20, 36, 0.92);
-            backdrop-filter: blur(8px);
-            padding: 12px;
-            border-radius: 10px;
-            border: 1px solid rgba(250, 204, 21, 0.35);
-            z-index: 10;
-            font-family: monospace;
-            font-size: 11.5px;
-            line-height: 1.5;
-        }
-        #math-panel::-webkit-scrollbar { width: 4px; }
-        #math-panel::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-        .math-header {
-            color: #facc15;
-            font-weight: bold;
-            font-size: 12px;
-            margin-bottom: 6px;
-            border-bottom: 1px solid rgba(250, 204, 21, 0.25);
-            padding-bottom: 4px;
-            display: flex;
-            justify-content: space-between;
-        }
-        .math-block {
-            background: rgba(0, 0, 0, 0.4);
-            padding: 7px 8px;
-            border-radius: 6px;
-            margin-bottom: 7px;
-            border-left: 3px solid #38bdf8;
-        }
-        .math-block.warn { border-left-color: #fb7185; }
-        .math-block.good { border-left-color: #00f5d4; }
-        .legend-row {
-            display: flex;
-            gap: 8px;
-            font-size: 10.5px;
-            color: #cbd5e1;
-            margin-bottom: 6px;
-            flex-wrap: wrap;
-        }
-        .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 3px; }
-
-        /* 右下角：WASD 互動鍵盤 */
+        /* 右下角：WASD 互動鍵盤面板 */
         #wasd-hud {
             position: absolute;
-            bottom: 12px;
-            right: 12px;
-            width: 340px;
-            background: rgba(16, 20, 36, 0.92);
+            bottom: 14px;
+            right: 14px;
+            background: rgba(18, 22, 41, 0.9);
             backdrop-filter: blur(10px);
-            padding: 10px 12px;
-            border-radius: 12px;
+            padding: 12px 14px;
+            border-radius: 14px;
             border: 1px solid rgba(0, 245, 212, 0.35);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
             z-index: 10;
             display: flex;
             flex-direction: column;
@@ -210,40 +184,42 @@
             gap: 6px;
         }
         .wasd-title { font-size: 11.5px; color: #00f5d4; font-weight: bold; }
-        .key-row { display: flex; gap: 6px; }
+        .key-row { display: flex; gap: 7px; }
         .key-cap {
-            width: 48px;
-            height: 46px;
-            background: #1e293b;
-            border: 2px solid #475569;
+            width: 50px;
+            height: 50px;
+            background: #232946;
+            border: 2px solid #3f4875;
             border-bottom-width: 4px;
-            border-radius: 8px;
+            border-radius: 9px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             color: #fff;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 15px;
             cursor: pointer;
+            transition: all 0.08s;
         }
-        .key-cap span { font-size: 9.5px; font-weight: normal; color: #94a3b8; }
+        .key-cap span { font-size: 9.5px; font-weight: normal; color: #90e0ef; margin-top: 1px; }
         .key-cap.pressed, .key-cap:active {
             background: #00f5d4;
-            border-color: #0284c7;
+            border-color: #00b4d8;
             color: #000;
             transform: translateY(2px);
             border-bottom-width: 2px;
+            box-shadow: 0 0 14px rgba(0, 245, 212, 0.6);
         }
         .key-cap.pressed span, .key-cap:active span { color: #000; font-weight: bold; }
-        .wasd-sub { font-size: 10.5px; color: #94a3b8; text-align: center; }
+        .wasd-sub { font-size: 10.5px; color: #aaa; text-align: center; line-height: 1.35; }
 
-        /* 導覽視窗 */
+        /* 導覽教學彈出視窗 */
         #guideModal {
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.75);
+            background: rgba(0, 0, 0, 0.72);
             backdrop-filter: blur(5px);
             z-index: 100;
             align-items: center;
@@ -251,11 +227,12 @@
         }
         .modal-card {
             width: 90%;
-            max-width: 580px;
-            background: #161d31;
+            max-width: 560px;
+            background: #1a203c;
             border: 1px solid #00f5d4;
             border-radius: 14px;
             padding: 20px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.7);
             max-height: 85vh;
             overflow-y: auto;
         }
@@ -263,12 +240,16 @@
         .step-box {
             background: rgba(255,255,255,0.05);
             border-left: 3px solid #00f5d4;
-            padding: 9px 12px;
-            margin-bottom: 8px;
-            border-radius: 0 6px 6px 0;
+            padding: 9px 11px;
+            margin-bottom: 9px;
+            border-radius: 0 8px 8px 0;
             font-size: 12.5px;
             line-height: 1.5;
         }
+        .step-box strong { color: #00f5d4; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 14px; }
+        #demoTourBtn { background: #00f5d4; color: #000; font-weight: bold; padding: 9px; }
+        #closeModalBtn { background: #333b63; color: white; padding: 9px; }
     </style>
 </head>
 <body>
@@ -276,200 +257,145 @@
 <!-- 左側控制面板 -->
 <div id="ui-panel">
     <div class="header-row">
-        <h3>雙雲台四舵機尾巴平衡系統</h3>
-        <div class="top-btns">
-            <button class="mini-btn" id="guideBtn">說明導覽</button>
-        </div>
+        <h3>雙雲台四舵機尾巴驅動系統</h3>
+        <button id="guideBtn">使用導覽</button>
+    </div>
+
+    <div class="badge-mode">
+        <strong>雙雲台 4 舵機串聯架構 + 即時重心計算</strong><br>
+        <b>WASD</b> 控制雙雲台偏轉；按住 <b>Shift + WASD</b> 或點擊 <b>±0.5°</b> 可進行 0.1° 精細角度微調。
     </div>
 
     <div class="btn-group">
-        <button class="action-btn" id="resetAllBtn">全部歸零 (Space)</button>
-        <button class="action-btn active" id="holdBtn">角度鎖定：開啟</button>
+        <button id="resetAllBtn">歸零回正 (Space)</button>
+        <button id="autoHoldBtn">保持當前角度</button>
     </div>
 
-    <div class="section-title">1. 雙雲台四舵機精細角度控制 (0.1° 步進)</div>
-    
-    <!-- 雲台 1 (基部雙舵機) -->
-    <div class="control-group">
-        <label><span>雲台1-水平舵機1 (Pan1 左右)</span><span class="val" id="pan1Val">0.0°</span></label>
-        <div class="fine-row">
-            <button class="step-btn" onclick="adjustParam('pan1', -1)">-1</button>
-            <button class="step-btn" onclick="adjustParam('pan1', -0.1)">-.1</button>
-            <input type="range" id="pan1Slider" min="-60" max="60" step="0.1" value="0">
-            <button class="step-btn" onclick="adjustParam('pan1', 0.1)">+.1</button>
-            <button class="step-btn" onclick="adjustParam('pan1', 1)">+1</button>
-        </div>
+    <div class="section-title">
+        <span>1. 雙雲台四舵機角度精細控制</span>
+        <span style="color:#ffd166;font-size:10px;">精度 0.1°</span>
     </div>
-
     <div class="control-group">
-        <label><span>雲台1-垂直舵機2 (Tilt1 俯仰)</span><span class="val" id="tilt1Val">0.0°</span></label>
-        <div class="fine-row">
-            <button class="step-btn" onclick="adjustParam('tilt1', -1)">-1</button>
-            <button class="step-btn" onclick="adjustParam('tilt1', -0.1)">-.1</button>
-            <input type="range" id="tilt1Slider" min="-45" max="45" step="0.1" value="0">
-            <button class="step-btn" onclick="adjustParam('tilt1', 0.1)">+.1</button>
-            <button class="step-btn" onclick="adjustParam('tilt1', 1)">+1</button>
-        </div>
-    </div>
-
-    <!-- 雲台 2 (中段雙舵機) -->
-    <div class="control-group">
-        <label><span>雲台2-水平舵機3 (Pan2 末端擺動)</span><span class="val" id="pan2Val">0.0°</span></label>
-        <div class="fine-row">
-            <button class="step-btn" onclick="adjustParam('pan2', -1)">-1</button>
-            <button class="step-btn" onclick="adjustParam('pan2', -0.1)">-.1</button>
-            <input type="range" id="pan2Slider" min="-60" max="60" step="0.1" value="0">
-            <button class="step-btn" onclick="adjustParam('pan2', 0.1)">+.1</button>
-            <button class="step-btn" onclick="adjustParam('pan2', 1)">+1</button>
-        </div>
-    </div>
-
-    <div class="control-group">
-        <label><span>雲台2-垂直舵機4 (Tilt2 末端俯仰)</span><span class="val" id="tilt2Val">0.0°</span></label>
-        <div class="fine-row">
-            <button class="step-btn" onclick="adjustParam('tilt2', -1)">-1</button>
-            <button class="step-btn" onclick="adjustParam('tilt2', -0.1)">-.1</button>
-            <input type="range" id="tilt2Slider" min="-45" max="45" step="0.1" value="0">
-            <button class="step-btn" onclick="adjustParam('tilt2', 0.1)">+.1</button>
-            <button class="step-btn" onclick="adjustParam('tilt2', 1)">+1</button>
-        </div>
-    </div>
-
-    <div class="control-group">
-        <label><span>第二截運動軸伸縮長度 (Q/E)</span><span class="val" id="tailLenVal">100.0%</span></label>
-        <div class="fine-row">
-            <button class="step-btn" onclick="adjustParam('len', -5)">-5%</button>
-            <input type="range" id="tailLenSlider" min="40" max="150" step="0.5" value="100">
-            <button class="step-btn" onclick="adjustParam('len', 5)">+5%</button>
-        </div>
-    </div>
-
-    <div class="section-title">2. 無尾巴輔助對照 & 外部擾動角度</div>
-    <div class="control-group">
-        <label><span>外部干擾側傾角 (無尾巴時失衡角)</span><span class="val" id="disturbRollVal">15.0°</span></label>
-        <div class="fine-row">
-            <button class="step-btn" onclick="adjustParam('dRoll', -1)">-1</button>
-            <button class="step-btn" onclick="adjustParam('dRoll', -0.1)">-.1</button>
-            <input type="range" id="disturbRollSlider" min="-40" max="40" step="0.1" value="15">
-            <button class="step-btn" onclick="adjustParam('dRoll', 0.1)">+.1</button>
-            <button class="step-btn" onclick="adjustParam('dRoll', 1)">+1</button>
+        <label><span>主水平擺角 (Gimbal-1 Pan / A,D)</span><span id="tailYawVal">0.0°</span></label>
+        <div class="slider-fine-row">
+            <button class="fine-btn" onclick="nudgeAngle('yaw', -0.5)">-0.5</button>
+            <input type="range" id="tailYawSlider" min="-65" max="65" step="0.1" value="0">
+            <button class="fine-btn" onclick="nudgeAngle('yaw', 0.5)">+0.5</button>
         </div>
     </div>
     <div class="control-group">
-        <label><span>外部干擾前後傾角 (Pitch 擾動)</span><span class="val" id="disturbPitchVal">0.0°</span></label>
-        <div class="fine-row">
-            <button class="step-btn" onclick="adjustParam('dPitch', -1)">-1</button>
-            <button class="step-btn" onclick="adjustParam('dPitch', -0.1)">-.1</button>
-            <input type="range" id="disturbPitchSlider" min="-30" max="30" step="0.1" value="0">
-            <button class="step-btn" onclick="adjustParam('dPitch', 0.1)">+.1</button>
-            <button class="step-btn" onclick="adjustParam('dPitch', 1)">+1</button>
+        <label><span>主垂直俯仰 (Gimbal-1 Tilt / W,S)</span><span id="tailPitchVal">0.0°</span></label>
+        <div class="slider-fine-row">
+            <button class="fine-btn" onclick="nudgeAngle('pitch', -0.5)">-0.5</button>
+            <input type="range" id="tailPitchSlider" min="-45" max="45" step="0.1" value="0">
+            <button class="fine-btn" onclick="nudgeAngle('pitch', 0.5)">+0.5</button>
         </div>
     </div>
-    <div class="btn-group">
-        <button class="action-btn active" id="toggleGhostBtn">顯示無尾巴對照影</button>
-        <button class="action-btn" id="autoBalanceBtn">一鍵自動抵消傾角</button>
+    <div class="control-group">
+        <label><span>第二雲台增益比 (Gimbal-2 串聯倍數)</span><span id="gimbal2RatioVal">0.75x</span></label>
+        <div class="slider-fine-row">
+            <button class="fine-btn" onclick="nudgeGimbal2(-0.05)">-</button>
+            <input type="range" id="gimbal2RatioSlider" min="0.0" max="1.5" step="0.05" value="0.75">
+            <button class="fine-btn" onclick="nudgeGimbal2(0.05)">+</button>
+        </div>
+    </div>
+    <div class="control-group">
+        <label><span>尾巴伸縮力臂 (Q 收短 / E 放長)</span><span id="tailLenVal">100.0%</span></label>
+        <div class="slider-fine-row">
+            <button class="fine-btn" onclick="nudgeLength(-2)">-2%</button>
+            <input type="range" id="tailLenSlider" min="30" max="150" step="0.5" value="100">
+            <button class="fine-btn" onclick="nudgeLength(2)">+2%</button>
+        </div>
     </div>
 
-    <div class="section-title">3. 人物體型與配重質量參數</div>
+    <div class="section-title">2. 人物體型參數 (影響質心高度與慣性)</div>
     <div class="control-group">
-        <label><span>人物身高 (H)</span><span class="val" id="heightVal">170 cm</span></label>
+        <label><span>人物身高 (質心高度 H_com)</span><span id="heightVal">170 cm</span></label>
         <input type="range" id="heightSlider" min="140" max="200" step="1" value="170">
     </div>
     <div class="control-group">
-        <label><span>人物體重 (M_body)</span><span class="val" id="weightVal">65 kg</span></label>
+        <label><span>人物體重 (質量 M_body)</span><span id="weightVal">65 kg</span></label>
         <input type="range" id="weightSlider" min="40" max="120" step="1" value="65">
     </div>
-    <div class="control-group">
-        <label><span>尾巴末端灰色配重質量 (M_tail)</span><span class="val" id="tailMassVal">4.5 kg</span></label>
-        <input type="range" id="tailMassSlider" min="1.0" max="12.0" step="0.1" value="4.5">
-    </div>
 
-    <button id="bleBtn">連線 ESP32 同步雙雲台舵機</button>
+    <button id="bleBtn">連線 ESP32 同步實體雙雲台</button>
+
+    <!-- 即時重心位置與力學計算過程回報 -->
+    <div id="physics-calc-box">
+        <div class="calc-header">即時重心位置 (CoM) 與力矩計算過程</div>
+        <div id="calc-output">初始化物理引擎中...</div>
+    </div>
 </div>
 
 <!-- 右上角：全方向觀察視角列 -->
 <div id="camera-panel">
-    <div class="cam-title">全方向觀察視角 (左鍵旋轉 / 右鍵平移 / 滾輪縮放)</div>
+    <div class="cam-title">全方向觀察視角 (滑鼠拖曳/滾輪縮放)</div>
     <div class="cam-grid">
         <button onclick="setCameraView('front', this)">正面視角</button>
         <button onclick="setCameraView('back', this)">背面視角</button>
         <button onclick="setCameraView('top', this)">俯視視角</button>
-        <button onclick="setCameraView('left', this)">左側(人物)</button>
-        <button onclick="setCameraView('right', this)">右側(雲台)</button>
+        <button onclick="setCameraView('left', this)">左側視角</button>
+        <button onclick="setCameraView('right', this)">右側視角</button>
         <button onclick="setCameraView('iso', this)" class="active">預設斜角</button>
     </div>
 </div>
 
-<!-- 右側中部：即時模擬與重心計算過程 -->
-<div id="math-panel">
-    <div class="math-header">
-        <span>即時重心模擬與力矩計算過程</span>
-        <span id="balanceBadge" style="color:#00f5d4;">計算中</span>
-    </div>
-    <div class="legend-row">
-        <span><i class="dot" style="background:#00ff88;"></i>人物質心</span>
-        <span><i class="dot" style="background:#38bdf8;"></i>尾巴質心</span>
-        <span><i class="dot" style="background:#facc15;"></i>合成總重心</span>
-        <span><i class="dot" style="background:#fb7185;"></i>無尾巴失衡影</span>
-    </div>
-    <div id="mathOutput">載入物理引擎中...</div>
-</div>
-
 <!-- 右下角：WASD 互動鍵盤面板 -->
 <div id="wasd-hud">
-    <div class="wasd-title">WASD 雙雲台連動控制 (按住 Shift 進入 0.1° 微調)</div>
+    <div class="wasd-title">WASD 雙雲台精細控制器</div>
     <div class="key-row">
         <div class="key-cap" id="key-q" data-key="q">Q<span>縮短</span></div>
         <div class="key-cap" id="key-w" data-key="w">W<span>上抬</span></div>
         <div class="key-cap" id="key-e" data-key="e">E<span>伸長</span></div>
     </div>
     <div class="key-row">
-        <div class="key-cap" id="key-a" data-key="a">A<span>左擺</span></div>
+        <div class="key-cap" id="key-a" data-key="a">A<span>左甩</span></div>
         <div class="key-cap" id="key-s" data-key="s">S<span>下壓</span></div>
-        <div class="key-cap" id="key-d" data-key="d">D<span>右擺</span></div>
+        <div class="key-cap" id="key-d" data-key="d">D<span>右甩</span></div>
     </div>
-    <div class="wasd-sub">連動控制雲台1 + 雲台2，也可於左側單獨微調四顆舵機</div>
+    <div class="wasd-sub">一般按住：標準甩動 ｜ <b>Shift + 按鍵</b>：0.1° 精細微調<br>左側地板綠色光圈為即時質心 (CoM) 地面投影</div>
 </div>
 
-<!-- 導覽說明視窗 -->
+<!-- 導覽教學與演示視窗 -->
 <div id="guideModal">
     <div class="modal-card">
-        <h2>系統架構與物理計算說明</h2>
+        <h2>雙雲台四舵機系統與重心計算導覽</h2>
         <div class="step-box">
-            <strong>1. 灰色長方體不可動結構 & 兩截運動軸</strong><br>
-            右側機構由<strong>灰色長方體底座、垂直固定柱、雲台支架與末端配重塊</strong>組成不可動結構，中間透過<strong>兩截可動運動軸</strong>連接，清楚呈現雙關節力臂延伸效果。
+            <strong>1. 雙雲台 4 顆伺服舵機串聯機構</strong><br>
+            右側機械尾巴由兩組 2 軸雲台組成：<b>基座雲台（Servo #1 水平 + Servo #2 垂直）</b>負責帶動整條力臂；<b>中段雲台（Servo #3 水平 + Servo #4 垂直）</b>串聯於中段關節，提供二次彎曲增益，能以更小的基座空間產生更大的重心牽引力矩。
         </div>
         <div class="step-box">
-            <strong>2. 四顆伺服舵機組成兩個雙軸雲台</strong><br>
-            • <b>第一組雲台（基部）</b>：舵機 1（水平 Pan1）+ 舵機 2（垂直 Tilt1）。<br>
-            • <b>第二組雲台（關節）</b>：舵機 3（水平 Pan2）+ 舵機 4（垂直 Tilt2）。
+            <strong>2. 0.1° 精細角度微調</strong><br>
+            除了使用 <b>WASD</b> 連續擺動外，按住 <b>Shift + WASD</b> 可進入慢速精準模式，或直接點擊滑桿兩側的 <b>-0.5° / +0.5°</b> 按鈕逐格觀察重心偏移變化。
         </div>
         <div class="step-box">
-            <strong>3. 無尾巴輔助對照（紅橘色半透明人物影）</strong><br>
-            設定「外部干擾側傾角」後，半透明橘紅身影代表<strong>沒有尾巴輔助時的純失衡傾斜幅度</strong>；實體人物則會結合雙雲台尾巴產生的反向補償力矩，呈現修正後的真實姿態與合成重心位置。
+            <strong>3. 即時重心位置 (CoM) 投影與計算過程</strong><br>
+            觀察左側人物身上的<b>綠色質心球</b>以及地板上的<b>重心投影光圈與偏移線</b>。左下角儀表板會即時列出質心 3D 座標 $(X, Y, Z)$、尾巴力矩 $\tau_{\text{tail}}$、身體回復力矩與傾倒裕度。
         </div>
-        <button class="action-btn active" style="width:100%; padding:10px; margin-top:8px;" onclick="document.getElementById('guideModal').style.display='none'">關閉說明</button>
+        <div class="modal-actions">
+            <button id="demoTourBtn">啟動雙雲台自動演示 (Demo)</button>
+            <button id="closeModalBtn">開始手動操作</button>
+        </div>
     </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
-    // ================= 1. 3D 場景與自由視角控制 =================
+    // ================= 1. 3D 場景與全方向攝影機控制 =================
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x101424, 0.018);
+    scene.fog = new THREE.FogExp2(0x121629, 0.02);
 
-    const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 100);
-    let camAngleY = 0.32;
-    let camAngleX = 0.28;
-    let camDist = 6.2;
-    let camTarget = new THREE.Vector3(-0.15, 1.0, 0);
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+    let camAngleY = 0.35;
+    let camAngleX = 0.32;
+    let camDist = 5.7;
 
     function updateCameraPosition() {
-        camera.position.x = camTarget.x + camDist * Math.sin(camAngleY) * Math.cos(camAngleX);
-        camera.position.y = camTarget.y + camDist * Math.sin(camAngleX);
-        camera.position.z = camTarget.z + camDist * Math.cos(camAngleY) * Math.cos(camAngleX);
-        camera.lookAt(camTarget);
+        camera.position.x = camDist * Math.sin(camAngleY) * Math.cos(camAngleX);
+        camera.position.y = 1.1 + camDist * Math.sin(camAngleX);
+        camera.position.z = camDist * Math.cos(camAngleY) * Math.cos(camAngleX);
+        camera.lookAt(0, 1.0, 0);
     }
     updateCameraPosition();
 
@@ -478,12 +404,12 @@
         if (btnEl) btnEl.classList.add('active');
 
         switch(view) {
-            case 'front': camTarget.set(-0.15, 1.0, 0); camAngleY = 0; camAngleX = 0.12; camDist = 5.6; break;
-            case 'back':  camTarget.set(-0.15, 1.0, 0); camAngleY = Math.PI; camAngleX = 0.18; camDist = 5.6; break;
-            case 'left':  camTarget.set(-1.35, 1.0, 0); camAngleY = -Math.PI / 2; camAngleX = 0.12; camDist = 4.6; break;
-            case 'right': camTarget.set(1.25, 1.0, 0.2); camAngleY = Math.PI / 2; camAngleX = 0.18; camDist = 4.5; break;
-            case 'top':   camTarget.set(-0.15, 0.9, 0); camAngleY = 0; camAngleX = 1.48; camDist = 6.5; break;
-            case 'iso':   camTarget.set(-0.15, 1.0, 0); camAngleY = 0.32; camAngleX = 0.28; camDist = 6.2; break;
+            case 'front': camAngleY = 0; camAngleX = 0.15; camDist = 5.2; break;
+            case 'back':  camAngleY = Math.PI; camAngleX = 0.2; camDist = 5.2; break;
+            case 'left':  camAngleY = -Math.PI / 2; camAngleX = 0.15; camDist = 5.2; break;
+            case 'right': camAngleY = Math.PI / 2; camAngleX = 0.15; camDist = 5.2; break;
+            case 'top':   camAngleY = 0; camAngleX = 1.45; camDist = 6.0; break;
+            case 'iso':   camAngleY = 0.35; camAngleX = 0.32; camDist = 5.7; break;
         }
         updateCameraPosition();
     };
@@ -492,43 +418,67 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // 滑鼠左鍵旋轉、右鍵平移、滾輪縮放
-    let dragMode = null, prevX = 0, prevY = 0;
-    renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
-    renderer.domElement.addEventListener('mousedown', (e) => {
-        dragMode = e.button === 2 ? 'pan' : 'orbit';
-        prevX = e.clientX; prevY = e.clientY;
-    });
-    window.addEventListener('mouseup', () => dragMode = null);
+    let isDragging = false, prevX = 0, prevY = 0;
+    renderer.domElement.addEventListener('mousedown', (e) => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+    window.addEventListener('mouseup', () => isDragging = false);
     window.addEventListener('mousemove', (e) => {
-        if (!dragMode) return;
-        const dx = e.clientX - prevX;
-        const dy = e.clientY - prevY;
-        if (dragMode === 'orbit') {
-            camAngleY -= dx * 0.009;
-            camAngleX = THREE.MathUtils.clamp(camAngleX + dy * 0.009, -0.05, 1.52);
-        } else {
-            camTarget.x -= dx * 0.005 * Math.cos(camAngleY);
-            camTarget.z += dx * 0.005 * Math.sin(camAngleY);
-            camTarget.y = THREE.MathUtils.clamp(camTarget.y + dy * 0.005, 0.2, 2.5);
-        }
+        if (!isDragging) return;
+        camAngleY -= (e.clientX - prevX) * 0.01;
+        camAngleX = THREE.MathUtils.clamp(camAngleX + (e.clientY - prevY) * 0.01, -0.1, 1.5);
         prevX = e.clientX; prevY = e.clientY;
         updateCameraPosition();
     });
     renderer.domElement.addEventListener('wheel', (e) => {
-        camDist = THREE.MathUtils.clamp(camDist + e.deltaY * 0.005, 2.0, 12.0);
+        camDist = THREE.MathUtils.clamp(camDist + e.deltaY * 0.005, 2.5, 11.0);
         updateCameraPosition();
     });
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.78));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
     dirLight.position.set(5, 12, 7);
     scene.add(dirLight);
 
-    const gridHelper = new THREE.GridHelper(18, 18, 0x38bdf8, 0x1e293b);
+    const gridHelper = new THREE.GridHelper(16, 16, 0x4cc9f0, 0x232946);
     scene.add(gridHelper);
 
-    // ================= 2. 人物模型建構函式 (含豐富立體頭髮與無尾巴對照影) =================
+    // ================= 2. 左側：增加立體髮型層次的人物模型 + 重心投影指示器 =================
+    const charRoot = new THREE.Group();
+    charRoot.position.set(-1.3, 0, 0);
+    scene.add(charRoot);
+
+    // 垂直基準軸線
+    const refLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 2.8, 0)]);
+    charRoot.add(new THREE.Line(refLineGeo, new THREE.LineBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.35 })));
+
+    // 地板支撐穩定圈 (雙腳站立安全範圍半徑 = 0.45m)
+    const supportRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.42, 0.45, 48),
+        new THREE.MeshBasicMaterial({ color: 0x4cc9f0, side: THREE.DoubleSide, transparent: true, opacity: 0.45 })
+    );
+    supportRing.rotation.x = -Math.PI / 2;
+    supportRing.position.y = 0.005;
+    charRoot.add(supportRing);
+
+    // 即時重心地面投影點 (CoM Ground Projection) 與鉛垂線
+    const comGroundDot = new THREE.Mesh(
+        new THREE.CircleGeometry(0.08, 24),
+        new THREE.MeshBasicMaterial({ color: 0x00ff88, side: THREE.DoubleSide })
+    );
+    comGroundDot.rotation.x = -Math.PI / 2;
+    comGroundDot.position.y = 0.008;
+    scene.add(comGroundDot);
+
+    const comPlumbGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0)]);
+    const comPlumbLine = new THREE.Line(comPlumbGeo, new THREE.LineBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.8 }));
+    scene.add(comPlumbLine);
+
+    const comShiftGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-1.3, 0.01, 0), new THREE.Vector3(-1.3, 0.01, 0)]);
+    const comShiftLine = new THREE.Line(comShiftGeo, new THREE.LineBasicMaterial({ color: 0xffd166 }));
+    scene.add(comShiftLine);
+
+    const pivotGroup = new THREE.Group();
+    charRoot.add(pivotGroup);
+
     function createShirtTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 512; canvas.height = 512;
@@ -556,432 +506,458 @@
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#f1c29b'; ctx.fillRect(0, 0, 256, 256);
         ctx.strokeStyle = '#1f1f24'; ctx.lineWidth = 6; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(74, 118); ctx.quadraticCurveTo(92, 112, 108, 118); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(148, 118); ctx.quadraticCurveTo(164, 112, 182, 118); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(74, 120); ctx.quadraticCurveTo(92, 114, 108, 120); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(148, 120); ctx.quadraticCurveTo(164, 114, 182, 120); ctx.stroke();
         ctx.fillStyle = '#18181b';
-        ctx.beginPath(); ctx.ellipse(92, 134, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(164, 134, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(92, 136, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(164, 136, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#d49a6a'; ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.moveTo(128, 138); ctx.lineTo(125, 162); ctx.lineTo(132, 165); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(128, 140); ctx.lineTo(125, 164); ctx.lineTo(132, 167); ctx.stroke();
         ctx.strokeStyle = '#9e5a4a'; ctx.lineWidth = 5;
-        ctx.beginPath(); ctx.moveTo(106, 188); ctx.quadraticCurveTo(128, 196, 150, 188); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(106, 190); ctx.quadraticCurveTo(128, 198, 150, 190); ctx.stroke();
         return new THREE.CanvasTexture(canvas);
     }
 
-    const sharedShirtTex = createShirtTexture();
-    const sharedFaceTex = createFaceTexture();
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf1c29b, roughness: 0.55 });
+    const hairMat = new THREE.MeshStandardMaterial({ color: 0x16161a, roughness: 0.65 });
+    const hairHighlightMat = new THREE.MeshStandardMaterial({ color: 0x26262e, roughness: 0.5 });
+    const shirtFrontMat = new THREE.MeshStandardMaterial({ map: createShirtTexture(), roughness: 0.8 });
+    const shirtPlainMat = new THREE.MeshStandardMaterial({ color: 0xf5f2e9, roughness: 0.8 });
+    const shortsMat = new THREE.MeshStandardMaterial({ color: 0x26282c, roughness: 0.85 });
+    const sockMat = new THREE.MeshStandardMaterial({ color: 0xf8f9fa, roughness: 0.75 });
+    const sockLogoMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+    const comMat = new THREE.MeshBasicMaterial({ color: 0x00ff88 });
 
-    function buildCharacterInstance(isGhost) {
-        const root = new THREE.Group();
-        const op = isGhost ? 0.34 : 1.0;
-        const tr = isGhost;
+    const leftLegGroup = new THREE.Group();
+    const rightLegGroup = new THREE.Group();
+    const torsoGroup = new THREE.Group();
+    const leftArmGroup = new THREE.Group();
+    const rightArmGroup = new THREE.Group();
+    const headGroup = new THREE.Group();
+    const comSphere = new THREE.Mesh(new THREE.SphereGeometry(0.105, 20, 20), comMat);
 
-        const skinMat = new THREE.MeshStandardMaterial({ color: isGhost ? 0xfb7185 : 0xf1c29b, roughness: 0.55, transparent: tr, opacity: op });
-        const hairMat = new THREE.MeshStandardMaterial({ color: isGhost ? 0xe11d48 : 0x16161a, roughness: 0.65, transparent: tr, opacity: op });
-        const hairHighlightMat = new THREE.MeshStandardMaterial({ color: isGhost ? 0xf43f5e : 0x26262e, roughness: 0.6, transparent: tr, opacity: op });
-        const shirtFrontMat = new THREE.MeshStandardMaterial({ map: isGhost ? null : sharedShirtTex, color: isGhost ? 0xfda4af : 0xffffff, roughness: 0.8, transparent: tr, opacity: op });
-        const shirtPlainMat = new THREE.MeshStandardMaterial({ color: isGhost ? 0xfda4af : 0xf5f2e9, roughness: 0.8, transparent: tr, opacity: op });
-        const shortsMat = new THREE.MeshStandardMaterial({ color: isGhost ? 0xbe123c : 0x26282c, roughness: 0.85, transparent: tr, opacity: op });
-        const sockMat = new THREE.MeshStandardMaterial({ color: isGhost ? 0xffe4e6 : 0xf8f9fa, roughness: 0.75, transparent: tr, opacity: op });
-        const sockLogoMat = new THREE.MeshStandardMaterial({ color: 0x111111, transparent: tr, opacity: op });
+    function buildLeg(group, side) {
+        const shortPant = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.14, 0.36, 16), shortsMat);
+        shortPant.position.y = 0.62; group.add(shortPant);
+        const calf = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.095, 0.26, 16), skinMat);
+        calf.position.y = 0.32; group.add(calf);
+        const sockTube = new THREE.Mesh(new THREE.CylinderGeometry(0.098, 0.092, 0.18, 16), sockMat);
+        sockTube.position.y = 0.11; group.add(sockTube);
+        const logo = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.025, 0.03), sockLogoMat);
+        logo.position.set(side * 0.095, 0.16, 0.02); group.add(logo);
+        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.07, 0.30), sockMat);
+        foot.position.set(0, 0.035, 0.07); foot.rotation.y = side * -0.14; group.add(foot);
+    }
+    buildLeg(leftLegGroup, -1);
+    buildLeg(rightLegGroup, 1);
 
-        const leftLegGroup = new THREE.Group();
-        const rightLegGroup = new THREE.Group();
-        const torsoGroup = new THREE.Group();
-        const leftArmGroup = new THREE.Group();
-        const rightArmGroup = new THREE.Group();
-        const headGroup = new THREE.Group();
+    const shirtMaterials = [shirtPlainMat, shirtPlainMat, shirtPlainMat, shirtPlainMat, shirtFrontMat, shirtPlainMat];
+    const shirtBody = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.88, 0.38), shirtMaterials);
+    shirtBody.position.y = 0.12; torsoGroup.add(shirtBody);
 
-        function makeLeg(g, side) {
-            const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.14, 0.36, 16), shortsMat); sp.position.y = 0.62; g.add(sp);
-            const cf = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.095, 0.26, 16), skinMat); cf.position.y = 0.32; g.add(cf);
-            const st = new THREE.Mesh(new THREE.CylinderGeometry(0.098, 0.092, 0.18, 16), sockMat); st.position.y = 0.11; g.add(st);
-            const lg = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.025, 0.03), sockLogoMat); lg.position.set(side * 0.095, 0.16, 0.02); g.add(lg);
-            const ft = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.07, 0.30), sockMat); ft.position.set(0, 0.035, 0.07); ft.rotation.y = side * -0.14; g.add(ft);
-        }
-        makeLeg(leftLegGroup, -1);
-        makeLeg(rightLegGroup, 1);
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.03, 10, 24), shirtPlainMat);
+    collar.rotation.x = Math.PI / 2; collar.position.set(0, 0.56, 0.02); torsoGroup.add(collar);
 
-        const sMats = [shirtPlainMat, shirtPlainMat, shirtPlainMat, shirtPlainMat, shirtFrontMat, shirtPlainMat];
-        const sBody = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.88, 0.38), sMats); sBody.position.y = 0.12; torsoGroup.add(sBody);
-        const col = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.03, 10, 24), shirtPlainMat); col.rotation.x = Math.PI / 2; col.position.set(0, 0.56, 0.02); torsoGroup.add(col);
-        const sw = new THREE.Mesh(new THREE.BoxGeometry(0.70, 0.24, 0.35), shortsMat); sw.position.y = -0.38; torsoGroup.add(sw);
+    const shortsWaist = new THREE.Mesh(new THREE.BoxGeometry(0.70, 0.24, 0.35), shortsMat);
+    shortsWaist.position.y = -0.38; torsoGroup.add(shortsWaist);
 
-        function makeArm(g, side) {
-            const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.145, 0.34, 16), shirtPlainMat); sl.position.y = 0.22; sl.rotation.z = side * 0.08; g.add(sl);
-            const fa = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.078, 0.42, 16), skinMat); fa.position.set(side * 0.02, -0.14, 0.02); g.add(fa);
-            const hd = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.11), skinMat); hd.position.set(side * 0.02, -0.40, 0.03); g.add(hd);
-        }
-        makeArm(leftArmGroup, -1);
-        makeArm(rightArmGroup, 1);
+    function buildArm(group, side) {
+        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.145, 0.34, 16), shirtPlainMat);
+        sleeve.position.y = 0.22; sleeve.rotation.z = side * 0.08; group.add(sleeve);
+        const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.078, 0.42, 16), skinMat);
+        forearm.position.set(side * 0.02, -0.14, 0.02); group.add(forearm);
+        const hand = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.11), skinMat);
+        hand.position.set(side * 0.02, -0.40, 0.03); group.add(hand);
+    }
+    buildArm(leftArmGroup, -1);
+    buildArm(rightArmGroup, 1);
 
-        // 頭部與多層次立體頭髮
-        const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.115, 0.16, 16), skinMat); neck.position.y = -0.22; headGroup.add(neck);
-        const hMats = [skinMat, skinMat, hairMat, skinMat, new THREE.MeshStandardMaterial({ map: isGhost ? null : sharedFaceTex, color: isGhost ? 0xfb7185 : 0xffffff, roughness: 0.55, transparent: tr, opacity: op }), hairMat];
-        headGroup.add(new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.46, 0.42), hMats));
+    // 頭部與「多層次蓬鬆立體頭髮」
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.115, 0.16, 16), skinMat);
+    neck.position.y = -0.22; headGroup.add(neck);
 
-        // 1. 蓬鬆頭頂髮冠層
-        const hairCrown = new THREE.Mesh(new THREE.SphereGeometry(0.275, 24, 18, 0, Math.PI * 2, 0, Math.PI * 0.62), hairMat);
-        hairCrown.scale.set(1.05, 0.88, 1.08);
-        hairCrown.position.set(0, 0.09, -0.02);
-        headGroup.add(hairCrown);
+    const headMaterials = [skinMat, skinMat, hairMat, skinMat, new THREE.MeshStandardMaterial({ map: createFaceTexture(), roughness: 0.55 }), hairMat];
+    headGroup.add(new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.46, 0.42), headMaterials));
 
-        // 2. 髮頂立體髮束層次
-        for (let s = -2; s <= 2; s++) {
-            const strand = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.07, 0.36), s % 2 === 0 ? hairHighlightMat : hairMat);
-            strand.position.set(s * 0.075, 0.255, -0.01);
-            strand.rotation.z = -s * 0.06;
-            headGroup.add(strand);
-        }
+    // 雙耳細節
+    const earL = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.11, 0.07), skinMat);
+    earL.position.set(-0.22, -0.02, -0.02);
+    const earR = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.11, 0.07), skinMat);
+    earR.position.set(0.22, -0.02, -0.02);
+    headGroup.add(earL, earR);
 
-        // 3. 分層自然微中分瀏海 (6 片交錯髮片)
-        const bangConfigs = [
-            { x: -0.15, y: 0.15, z: 0.215, w: 0.11, h: 0.16, rz: 0.14 },
-            { x: -0.06, y: 0.16, z: 0.222, w: 0.10, h: 0.14, rz: 0.06 },
-            { x:  0.06, y: 0.16, z: 0.222, w: 0.10, h: 0.14, rz: -0.06 },
-            { x:  0.15, y: 0.15, z: 0.215, w: 0.11, h: 0.16, rz: -0.14 }
-        ];
-        bangConfigs.forEach((b, idx) => {
-            const bang = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, 0.055), idx % 2 === 0 ? hairMat : hairHighlightMat);
-            bang.position.set(b.x, b.y, b.z);
-            bang.rotation.z = b.rz;
-            bang.rotation.x = -0.08;
-            headGroup.add(bang);
-        });
+    // 1. 主蓬鬆頭頂髮冠 (雙層交疊增加厚度感)
+    const hairCrownMain = new THREE.Mesh(new THREE.SphereGeometry(0.275, 24, 18, 0, Math.PI * 2, 0, Math.PI * 0.62), hairMat);
+    hairCrownMain.scale.set(1.06, 0.92, 1.12);
+    hairCrownMain.position.set(0, 0.08, -0.02);
+    headGroup.add(hairCrownMain);
 
-        // 4. 兩側立體鬢角與耳上髮層
-        [-1, 1].forEach(side => {
-            const sideLayer = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.28, 0.34), hairMat);
-            sideLayer.position.set(side * 0.22, 0.04, -0.03);
-            const sideburn = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.14, 0.08), hairHighlightMat);
-            sideburn.position.set(side * 0.215, -0.06, 0.10);
-            headGroup.add(sideLayer, sideburn);
-        });
-
-        // 5. 後腦勺飽滿髮層與後頸髮尾
-        const backHairUpper = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.34, 0.12), hairMat);
-        backHairUpper.position.set(0, 0.05, -0.22);
-        const backHairNape = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.16, 0.09), hairHighlightMat);
-        backHairNape.position.set(0, -0.15, -0.20);
-        headGroup.add(backHairUpper, backHairNape);
-
-        root.add(leftLegGroup, rightLegGroup, torsoGroup, leftArmGroup, rightArmGroup, headGroup);
-        return { root, leftLegGroup, rightLegGroup, torsoGroup, leftArmGroup, rightArmGroup, headGroup };
+    // 2. 頭頂蓬鬆層次髮束 (微翹感)
+    for (let i = -2; i <= 2; i++) {
+        const topTuft = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.07, 0.34), i % 2 === 0 ? hairMat : hairHighlightMat);
+        topTuft.position.set(i * 0.075, 0.265 - Math.abs(i) * 0.015, 0.01);
+        topTuft.rotation.z = -i * 0.12;
+        topTuft.rotation.x = 0.08;
+        headGroup.add(topTuft);
     }
 
-    // 左側主人物區域 (X = -1.45)
-    const charArea = new THREE.Group();
-    charArea.position.set(-1.45, 0, 0);
-    scene.add(charArea);
+    // 3. 前額分層微中分瀏海 (多縷交錯，更貼近自然韓系微蓋眉瀏海)
+    const bangConfigs = [
+        { x: -0.155, y: 0.145, z: 0.215, w: 0.11, h: 0.17, rz: 0.14, rx: -0.06 },
+        { x: -0.075, y: 0.148, z: 0.222, w: 0.10, h: 0.16, rz: 0.06, rx: -0.08 },
+        { x:  0.075, y: 0.152, z: 0.222, w: 0.10, h: 0.155, rz: -0.06, rx: -0.08 },
+        { x:  0.155, y: 0.145, z: 0.215, w: 0.11, h: 0.17, rz: -0.14, rx: -0.06 }
+    ];
+    bangConfigs.forEach((b, idx) => {
+        const strand = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, 0.055), idx % 2 === 0 ? hairMat : hairHighlightMat);
+        strand.position.set(b.x, b.y, b.z);
+        strand.rotation.set(b.rx, 0, b.rz);
+        headGroup.add(strand);
+    });
 
-    // 垂直基準線
-    charArea.add(new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 2.7, 0)]),
-        new THREE.LineBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.45 })
-    ));
+    // 4. 雙側蓬鬆鬢角與耳上髮層
+    const sideHairL1 = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.28, 0.36), hairMat);
+    sideHairL1.position.set(-0.225, 0.06, -0.02);
+    sideHairL1.rotation.z = 0.05;
+    const sideHairL2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.20, 0.14), hairHighlightMat);
+    sideHairL2.position.set(-0.22, -0.03, 0.10);
 
-    // 1. 有尾巴補償的實體人物
-    const activeCharPivot = new THREE.Group();
-    charArea.add(activeCharPivot);
-    const activeChar = buildCharacterInstance(false);
-    activeCharPivot.add(activeChar.root);
+    const sideHairR1 = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.28, 0.36), hairMat);
+    sideHairR1.position.set(0.225, 0.06, -0.02);
+    sideHairR1.rotation.z = -0.05;
+    const sideHairR2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.20, 0.14), hairHighlightMat);
+    sideHairR2.position.set(0.22, -0.03, 0.10);
+    headGroup.add(sideHairL1, sideHairL2, sideHairR1, sideHairR2);
 
-    // 2. 無尾巴輔助的對照幽靈人物 (橘紅色半透明)
-    const ghostCharPivot = new THREE.Group();
-    charArea.add(ghostCharPivot);
-    const ghostChar = buildCharacterInstance(true);
-    ghostCharPivot.add(ghostChar.root);
+    // 5. 後腦勺立體飽滿髮型與後頸短髮層次
+    const backHairUpper = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.34, 0.12), hairMat);
+    backHairUpper.position.set(0, 0.05, -0.22);
+    const backHairLower = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.16, 0.09), hairHighlightMat);
+    backHairLower.position.set(0, -0.14, -0.20);
+    backHairLower.rotation.x = 0.18;
+    headGroup.add(backHairUpper, backHairLower);
 
-    function applyBodyScale(charObj, heightCm, weightKg) {
+    pivotGroup.add(leftLegGroup, rightLegGroup, torsoGroup, leftArmGroup, rightArmGroup, headGroup, comSphere);
+
+    function updateCharacterBodyModel(heightCm, weightKg) {
         const hScale = heightCm / 170;
         const wScale = 0.78 + ((weightKg - 40) / 80) * 0.62;
         const legH = 0.80 * hScale;
         const torsoH = 0.92 * hScale;
 
-        charObj.leftLegGroup.scale.set(wScale * 0.92, hScale, wScale * 0.92);
-        charObj.rightLegGroup.scale.set(wScale * 0.92, hScale, wScale * 0.92);
-        charObj.leftLegGroup.position.set(-0.19 * wScale, 0, 0);
-        charObj.rightLegGroup.position.set(0.19 * wScale, 0, 0);
+        leftLegGroup.scale.set(wScale * 0.92, hScale, wScale * 0.92);
+        rightLegGroup.scale.set(wScale * 0.92, hScale, wScale * 0.92);
+        leftLegGroup.position.set(-0.19 * wScale, 0, 0);
+        rightLegGroup.position.set(0.19 * wScale, 0, 0);
 
-        charObj.torsoGroup.scale.set(wScale, hScale, wScale);
-        charObj.torsoGroup.position.y = legH + torsoH * 0.48;
+        torsoGroup.scale.set(wScale, hScale, wScale);
+        torsoGroup.position.y = legH + torsoH * 0.48;
 
-        charObj.leftArmGroup.scale.set(wScale * 0.88, hScale, wScale * 0.88);
-        charObj.rightArmGroup.scale.set(wScale * 0.88, hScale, wScale * 0.88);
-        charObj.leftArmGroup.position.set(-(0.44 * wScale), legH + torsoH * 0.58, 0);
-        charObj.rightArmGroup.position.set((0.44 * wScale), legH + torsoH * 0.58, 0);
+        leftArmGroup.scale.set(wScale * 0.88, hScale, wScale * 0.88);
+        rightArmGroup.scale.set(wScale * 0.88, hScale, wScale * 0.88);
+        leftArmGroup.position.set(-(0.44 * wScale), legH + torsoH * 0.58, 0);
+        rightArmGroup.position.set((0.44 * wScale), legH + torsoH * 0.58, 0);
 
-        charObj.headGroup.position.y = legH + torsoH + 0.28;
+        headGroup.position.y = legH + torsoH + 0.28;
+        // 質心位於人體肚臍上方約身高 56% 處
+        comSphere.position.set(0, legH + torsoH * 0.44, 0.02);
     }
 
-    // ================= 3. 右側：兩截運動軸 + 四顆舵機雙雲台 + 灰色不可動長方體結構 (X = +1.25) =================
-    const tailSystemRoot = new THREE.Group();
-    tailSystemRoot.position.set(1.25, 0, 0.35);
-    scene.add(tailSystemRoot);
+    // ================= 3. 右側：四顆伺服舵機組成的「雙雲台結構」機械尾巴 (X = +1.3) =================
+    const tailStandGroup = new THREE.Group();
+    tailStandGroup.position.set(1.3, 0, 0.45);
+    scene.add(tailStandGroup);
 
-    // 材質：灰色長方體 (不可動結構)、舵機藍殼、運動軸金屬銀
-    const staticGreyMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.35, roughness: 0.55 });
-    const staticDarkGreyMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.4, roughness: 0.5 });
-    const servoBodyMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.3, roughness: 0.4 });
-    const servoHornMat = new THREE.MeshStandardMaterial({ color: 0x00f5d4, emissive: 0x004d40, roughness: 0.3 });
-    const axisRodMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.75, roughness: 0.2 });
+    const baseMat = new THREE.MeshStandardMaterial({ color: 0x2b2d42, metalness: 0.65, roughness: 0.3 });
+    const bracketMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.75, roughness: 0.25 });
+    const servoBodyMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.4, roughness: 0.4 });
+    const servoAccentMat = new THREE.MeshStandardMaterial({ color: 0x00f5d4, emissive: 0x004d40, roughness: 0.3 });
+    const servoAccent2Mat = new THREE.MeshStandardMaterial({ color: 0xffb703, emissive: 0x5c3d00, roughness: 0.3 });
+    const tailArmorMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.5, roughness: 0.25 });
 
-    // 輔助函式：建立單顆 MG996R 伺服舵機模型
-    function createServoMesh(labelColorHex) {
+    // 底座與立柱
+    const basePlate = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.58, 0.1, 24), baseMat);
+    basePlate.position.y = 0.05; tailStandGroup.add(basePlate);
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.11, 0.85, 16), baseMat);
+    pillar.position.y = 0.48; tailStandGroup.add(pillar);
+
+    // 輔助函式：建立一顆擬真伺服舵機模型 (含舵盤與標示色環)
+    function createServoUnit(accentMat) {
         const g = new THREE.Group();
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.16, 0.09), servoBodyMat);
-        const ear = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.02, 0.09), staticDarkGreyMat);
-        ear.position.y = 0.03;
-        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.05, 16), new THREE.MeshStandardMaterial({ color: labelColorHex }));
-        shaft.position.set(0.04, 0.095, 0);
-        g.add(body, ear, shaft);
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.24, 0.14), servoBodyMat);
+        const flange = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.03, 0.14), bracketMat);
+        flange.position.y = 0.05;
+        const horn = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.04, 16), accentMat);
+        horn.position.y = 0.135;
+        g.add(body, flange, horn);
         return g;
     }
 
-    // 【不可動部分 1】底座灰色長方體 + 垂直支撐灰色長方體柱
-    const baseBlock = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.14, 0.85), staticGreyMat);
-    baseBlock.position.y = 0.07;
-    tailSystemRoot.add(baseBlock);
+    // --- 【第一組雲台 Gimbal-1：基座 2 軸雲台 (Servo #1 Pan + Servo #2 Tilt)】 ---
+    const gimbal1Root = new THREE.Group();
+    gimbal1Root.position.set(0, 0.92, 0);
+    tailStandGroup.add(gimbal1Root);
 
-    const pillarBlock = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.82, 0.22), staticGreyMat);
-    pillarBlock.position.y = 0.55;
-    tailSystemRoot.add(pillarBlock);
+    // Servo #1: 水平旋轉舵機 (Yaw / Pan)
+    const servo1Pan = createServoUnit(servoAccentMat);
+    gimbal1Root.add(servo1Pan);
 
-    // 【不可動部分 2】第一組雲台固定外框 (灰色長方體)
-    const gimbal1Frame = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.26, 0.30), staticDarkGreyMat);
-    gimbal1Frame.position.y = 1.02;
-    tailSystemRoot.add(gimbal1Frame);
-
-    // 【雲台 1 - 舵機 1 (Pan1 水平舵機)】固定於雲台1底部
-    const servo1Mesh = createServoMesh(0x00f5d4);
-    servo1Mesh.position.set(0, 0.90, 0);
-    tailSystemRoot.add(servo1Mesh);
-
-    // 雲台 1 水平旋轉節點 (Pan1)
     const gimbal1PanPivot = new THREE.Group();
-    gimbal1PanPivot.position.set(0, 1.02, 0);
-    tailSystemRoot.add(gimbal1PanPivot);
+    gimbal1PanPivot.position.y = 0.14;
+    gimbal1Root.add(gimbal1PanPivot);
 
-    // 【雲台 1 - 舵機 2 (Tilt1 垂直俯仰舵機)】側掛於雲台1旋轉架
-    const servo2Mesh = createServoMesh(0xfacc15);
-    servo2Mesh.rotation.z = Math.PI / 2;
-    servo2Mesh.position.set(0.18, 0, 0);
-    gimbal1PanPivot.add(servo2Mesh);
+    // Gimbal-1 U 型金屬支架
+    const uBracket1Bottom = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.03, 0.16), bracketMat);
+    const uBracket1Left = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.24, 0.16), bracketMat);
+    uBracket1Left.position.set(-0.135, 0.12, 0);
+    const uBracket1Right = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.24, 0.16), bracketMat);
+    uBracket1Right.position.set(0.135, 0.12, 0);
+    gimbal1PanPivot.add(uBracket1Bottom, uBracket1Left, uBracket1Right);
 
-    // 雲台 1 垂直俯仰節點 (Tilt1) -> 帶動「第一截運動軸」
-    const axis1Pivot = new THREE.Group();
-    gimbal1PanPivot.add(axis1Pivot);
+    // Servo #2: 垂直俯仰舵機 (Pitch / Tilt) 橫向安裝於 U 型支架內
+    const servo2Tilt = createServoUnit(servoAccentMat);
+    servo2Tilt.rotation.z = Math.PI / 2;
+    servo2Tilt.position.set(0.02, 0.16, 0);
+    gimbal1PanPivot.add(servo2Tilt);
 
-    // 【可動部分 1】第一截運動軸 (剛性雙桿軸)
-    const axis1Length = 0.85;
-    const axis1Rod = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, axis1Length, 16), axisRodMat);
-    axis1Rod.rotation.x = Math.PI / 2;
-    axis1Rod.position.set(0, 0, -axis1Length / 2);
-    axis1Pivot.add(axis1Rod);
+    const gimbal1TiltPivot = new THREE.Group();
+    gimbal1TiltPivot.position.set(0, 0.16, 0);
+    gimbal1PanPivot.add(gimbal1TiltPivot);
 
-    // 【不可動連接塊】第二組雲台基座灰色長方體 (位於第一截運動軸末端)
-    const gimbal2Base = new THREE.Group();
-    gimbal2Base.position.set(0, 0, -axis1Length);
-    axis1Pivot.add(gimbal2Base);
+    // 第一段連桿 (連接 Gimbal-1 到 Gimbal-2，隨伸縮長度調整)
+    const link1Mesh = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.65), tailArmorMat);
+    link1Mesh.position.set(0, 0, -0.36);
+    gimbal1TiltPivot.add(link1Mesh);
 
-    const gimbal2Frame = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.22, 0.26), staticDarkGreyMat);
-    gimbal2Base.add(gimbal2Frame);
+    // --- 【第二組雲台 Gimbal-2：中段增益 2 軸雲台 (Servo #3 Mid-Pan + Servo #4 Mid-Tilt)】 ---
+    const gimbal2Root = new THREE.Group();
+    gimbal2Root.position.set(0, 0, -0.72);
+    gimbal1TiltPivot.add(gimbal2Root);
 
-    // 【雲台 2 - 舵機 3 (Pan2 末端水平舵機)】
-    const servo3Mesh = createServoMesh(0x38bdf8);
-    servo3Mesh.scale.set(0.85, 0.85, 0.85);
-    servo3Mesh.position.set(0, -0.11, 0);
-    gimbal2Base.add(servo3Mesh);
+    // Servo #3: 中段水平增益舵機
+    const servo3Pan = createServoUnit(servoAccent2Mat);
+    servo3Pan.scale.set(0.85, 0.85, 0.85);
+    gimbal2Root.add(servo3Pan);
 
-    // 雲台 2 水平旋轉節點 (Pan2)
     const gimbal2PanPivot = new THREE.Group();
-    gimbal2Base.add(gimbal2PanPivot);
+    gimbal2PanPivot.position.y = 0.11;
+    gimbal2Root.add(gimbal2PanPivot);
 
-    // 【雲台 2 - 舵機 4 (Tilt2 末端垂直俯仰舵機)】
-    const servo4Mesh = createServoMesh(0xfb7185);
-    servo4Mesh.scale.set(0.85, 0.85, 0.85);
-    servo4Mesh.rotation.z = Math.PI / 2;
-    servo4Mesh.position.set(0.15, 0, 0);
-    gimbal2PanPivot.add(servo4Mesh);
+    // Gimbal-2 U 型金屬支架
+    const uBracket2Bottom = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.025, 0.14), bracketMat);
+    const uBracket2Left = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.20, 0.14), bracketMat);
+    uBracket2Left.position.set(-0.112, 0.10, 0);
+    const uBracket2Right = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.20, 0.14), bracketMat);
+    uBracket2Right.position.set(0.112, 0.10, 0);
+    gimbal2PanPivot.add(uBracket2Bottom, uBracket2Left, uBracket2Right);
 
-    // 雲台 2 垂直俯仰節點 (Tilt2) -> 帶動「第二截運動軸」
-    const axis2Pivot = new THREE.Group();
-    gimbal2PanPivot.add(axis2Pivot);
+    // Servo #4: 中段垂直增益舵機
+    const servo4Tilt = createServoUnit(servoAccent2Mat);
+    servo4Tilt.scale.set(0.85, 0.85, 0.85);
+    servo4Tilt.rotation.z = Math.PI / 2;
+    servo4Tilt.position.set(0.02, 0.13, 0);
+    gimbal2PanPivot.add(servo4Tilt);
 
-    // 【可動部分 2】第二截運動軸 (可伸縮軸桿) + 末端不可動灰色配重長方體
-    const baseAxis2Length = 0.85;
-    const axis2Rod = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, baseAxis2Length, 16), axisRodMat);
-    axis2Rod.rotation.x = Math.PI / 2;
-    axis2Rod.position.set(0, 0, -baseAxis2Length / 2);
-    axis2Pivot.add(axis2Rod);
+    const gimbal2TiltPivot = new THREE.Group();
+    gimbal2TiltPivot.position.set(0, 0.13, 0);
+    gimbal2PanPivot.add(gimbal2TiltPivot);
 
-    // 末端配重灰色長方體 (不可動配重塊)
-    const counterWeightBlock = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.18, 0.34), staticGreyMat);
-    counterWeightBlock.position.set(0, 0, -baseAxis2Length - 0.15);
-    axis2Pivot.add(counterWeightBlock);
+    // 第二雲台後方延伸尾段 (3 節漸縮尾椎)
+    const outerTailSegments = [];
+    const outerTailMeshes = [];
+    const outerSegCount = 3;
+    const baseOuterSpacing = 0.34;
+    let parentJoint = gimbal2TiltPivot;
 
-    // ================= 4. 三維重心標記球與投影線 =================
-    const bodyCoMSphere = new THREE.Mesh(new THREE.SphereGeometry(0.095, 16, 16), new THREE.MeshBasicMaterial({ color: 0x00ff88 }));
-    const tailCoMSphere = new THREE.Mesh(new THREE.SphereGeometry(0.095, 16, 16), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
-    const totalCoMSphere = new THREE.Mesh(new THREE.SphereGeometry(0.125, 20, 20), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
-    scene.add(bodyCoMSphere, tailCoMSphere, totalCoMSphere);
+    for (let i = 0; i < outerSegCount; i++) {
+        const joint = new THREE.Group();
+        if (i > 0) joint.position.set(0, 0, -baseOuterSpacing);
 
-    // 合成總重心垂直落地投影線
-    const dropLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0)]);
-    const dropLine = new THREE.Line(dropLineGeo, new THREE.LineBasicMaterial({ color: 0xfacc15 }));
-    scene.add(dropLine);
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.065 - i * 0.01, 0.065 - i * 0.01, 0.11, 14), servoAccent2Mat);
+        ring.rotation.z = Math.PI / 2; joint.add(ring);
 
-    // ================= 5. 參數狀態與精細控制邏輯 =================
-    const state = {
-        pan1: 0.0,
-        tilt1: 0.0,
-        pan2: 0.0,
-        tilt2: 0.0,
-        len: 100.0,
-        dRoll: 15.0,
-        dPitch: 0.0,
-        height: 170,
-        weight: 65,
-        tailMass: 4.5
-    };
+        const width = 0.17 * (1 - i * 0.18);
+        const height = 0.075 * (1 - i * 0.16);
+        const segMesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, 0.28), tailArmorMat);
+        segMesh.position.set(0, 0, -0.16); joint.add(segMesh);
 
-    let holdAngle = true;
-    let showGhost = true;
+        parentJoint.add(joint);
+        outerTailSegments.push(joint);
+        outerTailMeshes.push(segMesh);
+        parentJoint = joint;
+    }
+
+    function updateTailExtension(lengthPercent) {
+        const ratio = lengthPercent / 100;
+        // 調整第一段連桿與第二雲台位置
+        link1Mesh.scale.z = ratio;
+        link1Mesh.position.z = -0.36 * ratio;
+        gimbal2Root.position.z = -0.72 * ratio;
+
+        // 調整第二雲台後方尾段伸縮
+        for (let i = 0; i < outerSegCount; i++) {
+            if (i > 0) outerTailSegments[i].position.z = -baseOuterSpacing * ratio;
+            outerTailMeshes[i].scale.z = ratio;
+            outerTailMeshes[i].position.z = -0.16 * ratio;
+        }
+    }
+
+    // 力量傳導連線
+    const linkGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(1.3, 1.05, 0.45), new THREE.Vector3(-1.3, 1.05, 0)]);
+    scene.add(new THREE.Line(linkGeo, new THREE.LineBasicMaterial({ color: 0x00f5d4, transparent: true, opacity: 0.35 })));
+
+    // ================= 4. 精細角度控制與 UI 互動 =================
+    let targetTailYaw = 0.0;
+    let targetTailPitch = 0.0;
+    let gimbal2Ratio = 0.75; // 第二組雲台相對於第一組雲台的增益倍率
+    let tailLengthPct = 100.0;
+    let userHeight = 170;
+    let userWeight = 65;
+
+    let holdTailPosition = false;
+    let isDemoPlaying = false;
+
+    let currentTailYaw = 0.0;
+    let currentTailPitch = 0.0;
+    let charRoll = 0.0;
+    let charPitch = 0.0;
+    let charTurnYaw = 0.0;
+
     const keysPressed = { w: false, a: false, s: false, d: false, q: false, e: false, shift: false };
 
-    function clampState() {
-        state.pan1 = Number(THREE.MathUtils.clamp(state.pan1, -60, 60).toFixed(1));
-        state.tilt1 = Number(THREE.MathUtils.clamp(state.tilt1, -45, 45).toFixed(1));
-        state.pan2 = Number(THREE.MathUtils.clamp(state.pan2, -60, 60).toFixed(1));
-        state.tilt2 = Number(THREE.MathUtils.clamp(state.tilt2, -45, 45).toFixed(1));
-        state.len = Number(THREE.MathUtils.clamp(state.len, 40, 150).toFixed(1));
-        state.dRoll = Number(THREE.MathUtils.clamp(state.dRoll, -40, 40).toFixed(1));
-        state.dPitch = Number(THREE.MathUtils.clamp(state.dPitch, -30, 30).toFixed(1));
+    const tailYawSlider = document.getElementById('tailYawSlider');
+    const tailPitchSlider = document.getElementById('tailPitchSlider');
+    const gimbal2RatioSlider = document.getElementById('gimbal2RatioSlider');
+    const tailLenSlider = document.getElementById('tailLenSlider');
+    const heightSlider = document.getElementById('heightSlider');
+    const weightSlider = document.getElementById('weightSlider');
+
+    function enableHoldMode() {
+        holdTailPosition = true;
+        const btn = document.getElementById('autoHoldBtn');
+        btn.classList.add('active');
+        btn.innerText = "保持角度：開啟中";
     }
 
-    window.adjustParam = function(key, delta) {
-        state[key] += delta;
-        clampState();
-        syncUI();
+    window.nudgeAngle = function(axis, delta) {
+        isDemoPlaying = false;
+        enableHoldMode();
+        if (axis === 'yaw') {
+            targetTailYaw = THREE.MathUtils.clamp(Math.round((targetTailYaw + delta) * 10) / 10, -65, 65);
+        } else {
+            targetTailPitch = THREE.MathUtils.clamp(Math.round((targetTailPitch + delta) * 10) / 10, -45, 45);
+        }
+        syncAllUI();
     };
 
-    function syncUI() {
-        document.getElementById('pan1Slider').value = state.pan1;
-        document.getElementById('tilt1Slider').value = state.tilt1;
-        document.getElementById('pan2Slider').value = state.pan2;
-        document.getElementById('tilt2Slider').value = state.tilt2;
-        document.getElementById('tailLenSlider').value = state.len;
-        document.getElementById('disturbRollSlider').value = state.dRoll;
-        document.getElementById('disturbPitchSlider').value = state.dPitch;
-        document.getElementById('heightSlider').value = state.height;
-        document.getElementById('weightSlider').value = state.weight;
-        document.getElementById('tailMassSlider').value = state.tailMass;
+    window.nudgeGimbal2 = function(delta) {
+        gimbal2Ratio = THREE.MathUtils.clamp(Math.round((gimbal2Ratio + delta) * 100) / 100, 0, 1.5);
+        syncAllUI();
+    };
 
-        document.getElementById('pan1Val').innerText = state.pan1.toFixed(1) + '°';
-        document.getElementById('tilt1Val').innerText = state.tilt1.toFixed(1) + '°';
-        document.getElementById('pan2Val').innerText = state.pan2.toFixed(1) + '°';
-        document.getElementById('tilt2Val').innerText = state.tilt2.toFixed(1) + '°';
-        document.getElementById('tailLenVal').innerText = state.len.toFixed(1) + '%';
-        document.getElementById('disturbRollVal').innerText = state.dRoll.toFixed(1) + '°';
-        document.getElementById('disturbPitchVal').innerText = state.dPitch.toFixed(1) + '°';
-        document.getElementById('heightVal').innerText = state.height + ' cm';
-        document.getElementById('weightVal').innerText = state.weight + ' kg';
-        document.getElementById('tailMassVal').innerText = state.tailMass.toFixed(1) + ' kg';
+    window.nudgeLength = function(delta) {
+        isDemoPlaying = false;
+        tailLengthPct = THREE.MathUtils.clamp(Math.round((tailLengthPct + delta) * 10) / 10, 30, 150);
+        syncAllUI();
+    };
 
-        applyBodyScale(activeChar, state.height, state.weight);
-        applyBodyScale(ghostChar, state.height, state.weight);
+    function syncAllUI() {
+        tailYawSlider.value = targetTailYaw;
+        tailPitchSlider.value = targetTailPitch;
+        gimbal2RatioSlider.value = gimbal2Ratio;
+        tailLenSlider.value = tailLengthPct;
+        heightSlider.value = userHeight;
+        weightSlider.value = userWeight;
 
-        // 更新第二截運動軸伸縮與末端灰色配重長方體位置
-        const ratio = state.len / 100;
-        const currentAxis2Len = baseAxis2Length * ratio;
-        axis2Rod.scale.y = ratio;
-        axis2Rod.position.z = -currentAxis2Len / 2;
-        counterWeightBlock.position.z = -currentAxis2Len - 0.15;
+        document.getElementById('tailYawVal').innerText = targetTailYaw.toFixed(1) + '°';
+        document.getElementById('tailPitchVal').innerText = targetTailPitch.toFixed(1) + '°';
+        document.getElementById('gimbal2RatioVal').innerText = gimbal2Ratio.toFixed(2) + 'x';
+        document.getElementById('tailLenVal').innerText = tailLengthPct.toFixed(1) + '%';
+        document.getElementById('heightVal').innerText = userHeight + ' cm';
+        document.getElementById('weightVal').innerText = userWeight + ' kg';
+
+        updateCharacterBodyModel(userHeight, userWeight);
+        updateTailExtension(tailLengthPct);
     }
 
-    // 綁定滑桿事件
-    const sliderBindings = [
-        ['pan1Slider', 'pan1'], ['tilt1Slider', 'tilt1'],
-        ['pan2Slider', 'pan2'], ['tilt2Slider', 'tilt2'],
-        ['tailLenSlider', 'len'], ['disturbRollSlider', 'dRoll'],
-        ['disturbPitchSlider', 'dPitch'], ['heightSlider', 'height'],
-        ['weightSlider', 'weight'], ['tailMassSlider', 'tailMass']
-    ];
-    sliderBindings.forEach(([id, prop]) => {
-        document.getElementById(id).oninput = (e) => {
-            state[prop] = parseFloat(e.target.value);
-            syncUI();
-        };
-    });
-
-    document.getElementById('resetAllBtn').onclick = () => {
-        state.pan1 = 0; state.tilt1 = 0; state.pan2 = 0; state.tilt2 = 0;
-        state.len = 100; state.dRoll = 0; state.dPitch = 0;
-        syncUI();
-    };
-
-    document.getElementById('holdBtn').onclick = (e) => {
-        holdAngle = !holdAngle;
-        e.target.classList.toggle('active', holdAngle);
-        e.target.innerText = holdAngle ? "角度鎖定：開啟" : "角度鎖定：關閉(自動回彈)";
-    };
-
-    document.getElementById('toggleGhostBtn').onclick = (e) => {
-        showGhost = !showGhost;
-        ghostCharPivot.visible = showGhost;
-        e.target.classList.toggle('active', showGhost);
-    };
-
-    // 一鍵計算並套用「完全抵消外部干擾傾角」的雙雲台角度
-    document.getElementById('autoBalanceBtn').onclick = () => {
-        const hMeters = (state.height / 100) * 0.55; // 人物質心高度 (m)
-        const bodyTorqueRoll = state.weight * 9.81 * hMeters * Math.sin(THREE.MathUtils.degToRad(state.dRoll));
-        const totalArm = 0.45 + 0.45 * (state.len / 100); // 雙軸等效物理力臂 (m)
-        const maxTailTorque = state.tailMass * 9.81 * totalArm;
-
-        // 求解所需反向擺角 sin(theta) = -bodyTorque / maxTailTorque
-        const reqSin = THREE.MathUtils.clamp(-bodyTorqueRoll / Math.max(maxTailTorque, 0.1), -0.95, 0.95);
-        const totalReqDeg = THREE.MathUtils.radToDeg(Math.asin(reqSin));
-
-        // 平均分配給雲台 1 與雲台 2
-        state.pan1 = Number(THREE.MathUtils.clamp(totalReqDeg * 0.55, -60, 60).toFixed(1));
-        state.pan2 = Number(THREE.MathUtils.clamp(totalReqDeg * 0.45, -60, 60).toFixed(1));
-        state.tilt1 = Number(THREE.MathUtils.clamp(state.dPitch * 0.5, -45, 45).toFixed(1));
-        state.tilt2 = Number(THREE.MathUtils.clamp(state.dPitch * 0.5, -45, 45).toFixed(1));
-        syncUI();
-    };
-
-    document.getElementById('guideBtn').onclick = () => { document.getElementById('guideModal').style.display = 'flex'; };
-
-    // 鍵盤 WASD + QE + Shift 微調
-    function setKeyVisual(k, on) {
-        const el = document.getElementById('key-' + k);
-        if (el) el.classList.toggle('pressed', on);
+    function setKeyVisual(key, state) {
+        const el = document.getElementById('key-' + key);
+        if (el) {
+            if (state) el.classList.add('pressed');
+            else el.classList.remove('pressed');
+        }
     }
+
     window.addEventListener('keydown', (e) => {
-        if (e.key === 'Shift') keysPressed.shift = true;
+        if (e.key === 'Shift') { keysPressed.shift = true; return; }
         const k = e.key.toLowerCase();
-        if (k === ' ') { e.preventDefault(); document.getElementById('resetAllBtn').click(); return; }
+        if (k === ' ') {
+            e.preventDefault();
+            resetAll();
+            return;
+        }
         const map = { 'w': 'w', 'arrowup': 'w', 's': 's', 'arrowdown': 's', 'a': 'a', 'arrowleft': 'a', 'd': 'd', 'arrowright': 'd', 'q': 'q', 'e': 'e' };
-        if (map[k]) { keysPressed[map[k]] = true; setKeyVisual(map[k], true); }
+        if (map[k]) {
+            isDemoPlaying = false;
+            keysPressed[map[k]] = true;
+            setKeyVisual(map[k], true);
+        }
     });
+
     window.addEventListener('keyup', (e) => {
-        if (e.key === 'Shift') keysPressed.shift = false;
+        if (e.key === 'Shift') { keysPressed.shift = false; return; }
         const k = e.key.toLowerCase();
         const map = { 'w': 'w', 'arrowup': 'w', 's': 's', 'arrowdown': 's', 'a': 'a', 'arrowleft': 'a', 'd': 'd', 'arrowright': 'd', 'q': 'q', 'e': 'e' };
-        if (map[k]) { keysPressed[map[k]] = false; setKeyVisual(map[k], false); }
+        if (map[k]) {
+            keysPressed[map[k]] = false;
+            setKeyVisual(map[k], false);
+        }
     });
+
     document.querySelectorAll('.key-cap').forEach(btn => {
         const k = btn.dataset.key;
-        const down = (e) => { e.preventDefault(); keysPressed[k] = true; setKeyVisual(k, true); };
-        const up = () => { keysPressed[k] = false; setKeyVisual(k, false); };
-        btn.addEventListener('mousedown', down); btn.addEventListener('mouseup', up); btn.addEventListener('mouseleave', up);
-        btn.addEventListener('touchstart', down); btn.addEventListener('touchend', up);
+        const press = (e) => { e.preventDefault(); isDemoPlaying = false; keysPressed[k] = true; setKeyVisual(k, true); };
+        const release = () => { keysPressed[k] = false; setKeyVisual(k, false); };
+        btn.addEventListener('mousedown', press);
+        btn.addEventListener('mouseup', release);
+        btn.addEventListener('mouseleave', release);
+        btn.addEventListener('touchstart', press);
+        btn.addEventListener('touchend', release);
     });
 
-    syncUI();
+    function resetAll() {
+        isDemoPlaying = false;
+        targetTailYaw = 0.0;
+        targetTailPitch = 0.0;
+        tailLengthPct = 100.0;
+        syncAllUI();
+    }
 
-    // ================= 6. ESP32 BLE 藍牙同步模組 (支援四舵機封包) =================
+    document.getElementById('resetAllBtn').onclick = resetAll;
+    document.getElementById('autoHoldBtn').onclick = (e) => {
+        holdTailPosition = !holdTailPosition;
+        e.target.classList.toggle('active', holdTailPosition);
+        e.target.innerText = holdTailPosition ? "保持角度：開啟中" : "保持當前角度";
+    };
+
+    tailYawSlider.oninput = (e) => { isDemoPlaying = false; enableHoldMode(); targetTailYaw = parseFloat(e.target.value); syncAllUI(); };
+    tailPitchSlider.oninput = (e) => { isDemoPlaying = false; enableHoldMode(); targetTailPitch = parseFloat(e.target.value); syncAllUI(); };
+    gimbal2RatioSlider.oninput = (e) => { gimbal2Ratio = parseFloat(e.target.value); syncAllUI(); };
+    tailLenSlider.oninput = (e) => { isDemoPlaying = false; tailLengthPct = parseFloat(e.target.value); syncAllUI(); };
+    heightSlider.oninput = (e) => { userHeight = parseFloat(e.target.value); syncAllUI(); };
+    weightSlider.oninput = (e) => { userWeight = parseFloat(e.target.value); syncAllUI(); };
+
+    const guideModal = document.getElementById('guideModal');
+    document.getElementById('guideBtn').onclick = () => { guideModal.style.display = 'flex'; };
+    document.getElementById('closeModalBtn').onclick = () => { guideModal.style.display = 'none'; };
+    document.getElementById('demoTourBtn').onclick = () => {
+        guideModal.style.display = 'none';
+        isDemoPlaying = true;
+    };
+
+    syncAllUI();
+
+    // ================= 5. 標準版 ESP32 BLE 藍牙同步模組 =================
     const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
     const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
     let bleCharacteristic = null;
@@ -994,178 +970,183 @@
                 filters: [{ name: 'ESP32_Tail_Controller' }],
                 optionalServices: [SERVICE_UUID]
             });
+
             device.addEventListener('gattserverdisconnected', () => {
                 bleCharacteristic = null;
-                btn.innerText = "連線 ESP32 同步雙雲台舵機 (已斷線)";
+                btn.innerText = "連線 ESP32 同步實體雙雲台 (點擊重連)";
                 btn.classList.remove('connected');
             });
+
             const server = await device.gatt.connect();
             const service = await server.getPrimaryService(SERVICE_UUID);
             bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-            btn.innerText = "已連線 ESP32 (四舵機即時同步中)";
+            
+            btn.innerText = "已隔空連線 ESP32 (4 舵機即時同步中)";
             btn.classList.add('connected');
         } catch (err) {
-            console.log("藍牙連線取消:", err);
+            console.log("藍牙連線取消或失敗:", err);
         }
     });
 
-    async function sendFourServosToESP32(s1, s2, s3, s4) {
+    async function sendTailToESP32(pan1, tilt1, pan2, tilt2) {
         if (!bleCharacteristic) return;
         const now = Date.now();
-        if (now - lastBleSendTime < 55) return;
+        if (now - lastBleSendTime < 55) return; 
         lastBleSendTime = now;
-        // 前兩碼相容原本雙舵機程式 (s1,s2)，後兩碼擴充雲台2 (s3,s4)
-        const payload = `${s1},${s2},${s3},${s4}`;
+
         try {
+            // 傳送 4 顆舵機角度 (前兩碼相容舊版雙舵機解析，後兩碼供四舵機雙雲台使用)
+            const payload = `${pan1},${tilt1},${pan2},${tilt2}`;
             await bleCharacteristic.writeValueWithoutResponse(new TextEncoder().encode(payload));
         } catch (e) {
-            try { await bleCharacteristic.writeValue(new TextEncoder().encode(payload)); } catch (err2) {}
+            try {
+                await bleCharacteristic.writeValue(new TextEncoder().encode(`${pan1},${tilt1},${pan2},${tilt2}`));
+            } catch (err2) {}
         }
     }
 
-    // ================= 7. 即時物理引擎與重心計算過程主迴圈 =================
-    const tempVecBody = new THREE.Vector3();
-    const tempVecTail = new THREE.Vector3();
+    // ================= 6. 雙雲台動力學與即時重心計算主迴圈 =================
+    const clock = new THREE.Clock();
+    const comWorldPos = new THREE.Vector3();
 
     function animate() {
         requestAnimationFrame(animate);
+        const t = clock.getElapsedTime();
 
-        // 1. 鍵盤精細/標準步進更新
-        const step = keysPressed.shift ? 0.1 : 1.0;
-        const lenStep = keysPressed.shift ? 0.5 : 1.5;
-        let changed = false;
+        // 支援 Shift 精細微調速度 (按住 Shift 時每次僅步進 0.25°)
+        const steerSpeed = keysPressed.shift ? 0.25 : 2.1;
+        const stretchSpeed = keysPressed.shift ? 0.3 : 1.5;
+        let anyDirKey = false;
 
-        if (keysPressed.a) { state.pan1 -= step * 0.55; state.pan2 -= step * 0.45; changed = true; }
-        if (keysPressed.d) { state.pan1 += step * 0.55; state.pan2 += step * 0.45; changed = true; }
-        if (keysPressed.w) { state.tilt1 += step * 0.55; state.tilt2 += step * 0.45; changed = true; }
-        if (keysPressed.s) { state.tilt1 -= step * 0.55; state.tilt2 -= step * 0.45; changed = true; }
-        if (keysPressed.q) { state.len -= lenStep; changed = true; }
-        if (keysPressed.e) { state.len += lenStep; changed = true; }
+        if (keysPressed.a) { targetTailYaw = THREE.MathUtils.clamp(targetTailYaw - steerSpeed, -65, 65); anyDirKey = true; }
+        if (keysPressed.d) { targetTailYaw = THREE.MathUtils.clamp(targetTailYaw + steerSpeed, -65, 65); anyDirKey = true; }
+        if (keysPressed.w) { targetTailPitch = THREE.MathUtils.clamp(targetTailPitch + steerSpeed * 0.8, -45, 45); anyDirKey = true; }
+        if (keysPressed.s) { targetTailPitch = THREE.MathUtils.clamp(targetTailPitch - steerSpeed * 0.8, -45, 45); anyDirKey = true; }
+        if (keysPressed.q) { tailLengthPct = THREE.MathUtils.clamp(tailLengthPct - stretchSpeed, 30, 150); }
+        if (keysPressed.e) { tailLengthPct = THREE.MathUtils.clamp(tailLengthPct + stretchSpeed, 30, 150); }
 
-        if (!changed && !holdAngle) {
-            state.pan1 *= 0.92; state.tilt1 *= 0.92;
-            state.pan2 *= 0.92; state.tilt2 *= 0.92;
-            if (Math.abs(state.pan1) < 0.05) state.pan1 = 0;
-            if (Math.abs(state.tilt1) < 0.05) state.tilt1 = 0;
-            if (Math.abs(state.pan2) < 0.05) state.pan2 = 0;
-            if (Math.abs(state.tilt2) < 0.05) state.tilt2 = 0;
-            changed = true;
+        if (!anyDirKey && !holdTailPosition && !isDemoPlaying) {
+            targetTailYaw *= 0.90;
+            targetTailPitch *= 0.90;
+            if (Math.abs(targetTailYaw) < 0.05) targetTailYaw = 0;
+            if (Math.abs(targetTailPitch) < 0.05) targetTailPitch = 0;
         }
 
-        if (changed) {
-            clampState();
-            syncUI();
+        if (isDemoPlaying) {
+            targetTailYaw = Math.sin(t * 1.5) * 52;
+            targetTailPitch = Math.cos(t * 0.85) * 24;
+            tailLengthPct = 100 + Math.sin(t * 1.0) * 35;
         }
 
-        // 2. 更新雙雲台四舵機運動軸姿態
-        gimbal1PanPivot.rotation.y = THREE.MathUtils.degToRad(state.pan1);
-        axis1Pivot.rotation.x = THREE.MathUtils.degToRad(state.tilt1);
-        gimbal2PanPivot.rotation.y = THREE.MathUtils.degToRad(state.pan2);
-        axis2Pivot.rotation.x = THREE.MathUtils.degToRad(state.tilt2);
-
-        // 3. 完整物理力矩與重心位置計算
-        const g = 9.81;
-        const hCoM = (state.height / 100) * 0.55; // 人物質心離地高度 (m)
-        const dRollRad = THREE.MathUtils.degToRad(state.dRoll);
-        const dPitchRad = THREE.MathUtils.degToRad(state.dPitch);
-
-        // (A) 無尾巴輔助時的傾覆力矩與失衡偏移量
-        const tauBodyRoll = state.weight * g * hCoM * Math.sin(dRollRad);   // N·m
-        const tauBodyPitch = state.weight * g * hCoM * Math.sin(dPitchRad); // N·m
-        const noTailOffsetCm = hCoM * Math.sin(dRollRad) * 100;             // 無尾巴重心水平偏移 (cm)
-
-        // (B) 雙雲台兩截運動軸產生的補償力矩
-        const arm1 = 0.45; // 第一截力臂 (m)
-        const arm2 = 0.45 * (state.len / 100); // 第二截伸縮力臂 (m)
-        const effYawRad = THREE.MathUtils.degToRad(state.pan1 + state.pan2 * 0.85);
-        const effPitchRad = THREE.MathUtils.degToRad(state.tilt1 + state.tilt2 * 0.85);
-
-        const totalTailArm = arm1 + arm2;
-        const tauTailRoll = state.tailMass * g * totalTailArm * Math.sin(effYawRad);
-        const tauTailPitch = state.tailMass * g * totalTailArm * Math.sin(effPitchRad);
-
-        // (C) 淨力矩與「有尾巴輔助後的修正傾斜角」
-        const netTorqueRoll = tauBodyRoll + tauTailRoll;
-        const netTorquePitch = tauBodyPitch - tauTailPitch;
-
-        const denom = Math.max(state.weight * g * hCoM, 1);
-        const netSinRoll = THREE.MathUtils.clamp(netTorqueRoll / denom, -0.85, 0.85);
-        const netSinPitch = THREE.MathUtils.clamp(netTorquePitch / denom, -0.75, 0.75);
-
-        const correctedRollDeg = THREE.MathUtils.radToDeg(Math.asin(netSinRoll));
-        const correctedPitchDeg = THREE.MathUtils.radToDeg(Math.asin(netSinPitch));
-        const withTailOffsetCm = hCoM * Math.sin(THREE.MathUtils.degToRad(correctedRollDeg)) * 100;
-
-        // 4. 套用姿態至「有尾巴實體人物」與「無尾巴對照影」
-        activeCharPivot.rotation.z = -THREE.MathUtils.degToRad(correctedRollDeg);
-        activeCharPivot.rotation.x = THREE.MathUtils.degToRad(correctedPitchDeg);
-
-        ghostCharPivot.rotation.z = -dRollRad;
-        ghostCharPivot.rotation.x = dPitchRad;
-
-        // 5. 更新 3D 空間中的三顆質心球與合成重心計算
-        activeCharPivot.updateMatrixWorld(true);
-        counterWeightBlock.updateMatrixWorld(true);
-
-        tempVecBody.set(0, hCoM * 1.65, 0).applyMatrix4(activeCharPivot.matrixWorld);
-        tempVecTail.setFromMatrixPosition(counterWeightBlock.matrixWorld);
-
-        bodyCoMSphere.position.copy(tempVecBody);
-        tailCoMSphere.position.copy(tempVecTail);
-
-        // 質量加權合成總重心 CoM_total = (M_body * R_body + M_tail * R_tail) / (M_body + M_tail)
-        const totalMass = state.weight + state.tailMass;
-        const comX = (state.weight * tempVecBody.x + state.tailMass * tempVecTail.x) / totalMass;
-        const comY = (state.weight * tempVecBody.y + state.tailMass * tempVecTail.y) / totalMass;
-        const comZ = (state.weight * tempVecBody.z + state.tailMass * tempVecTail.z) / totalMass;
-
-        totalCoMSphere.position.set(comX, comY, comZ);
-        dropLine.geometry.setFromPoints([new THREE.Vector3(comX, comY, comZ), new THREE.Vector3(comX, 0, comZ)]);
-
-        // 6. 即時輸出詳細數學計算過程
-        const improvementPct = Math.abs(state.dRoll) > 0.1
-            ? Math.max(0, (1 - Math.abs(correctedRollDeg) / Math.abs(state.dRoll)) * 100).toFixed(1)
-            : "100.0";
-
-        const badge = document.getElementById('balanceBadge');
-        if (Math.abs(correctedRollDeg) < 2.0) {
-            badge.innerText = "狀態：重心穩定平衡";
-            badge.style.color = "#00f5d4";
-        } else {
-            badge.innerText = `殘餘傾角：${correctedRollDeg.toFixed(1)}°`;
-            badge.style.color = "#facc15";
+        if (anyDirKey || keysPressed.q || keysPressed.e || isDemoPlaying || Math.abs(targetTailYaw) > 0.05 || Math.abs(targetTailPitch) > 0.05) {
+            syncAllUI();
         }
 
-        document.getElementById('mathOutput').innerHTML = `
-            <div class="math-block">
-                <b>【1. 空間質心座標 (CoM 加權平均)】</b><br>
-                人物質心 R<sub>body</sub>: (${tempVecBody.x.toFixed(2)}, ${tempVecBody.y.toFixed(2)}, ${tempVecBody.z.toFixed(2)}) m<br>
-                尾巴質心 R<sub>tail</sub>: (${tempVecTail.x.toFixed(2)}, ${tempVecTail.y.toFixed(2)}, ${tempVecTail.z.toFixed(2)}) m<br>
-                合成總重心 = (M<sub>b</sub>·R<sub>b</sub> + M<sub>t</sub>·R<sub>t</sub>) / ${(totalMass).toFixed(1)}kg<br>
-                <span style="color:#facc15;">→ 總重心位置: (${comX.toFixed(2)}, ${comY.toFixed(2)}, ${comZ.toFixed(2)}) m</span>
-            </div>
-            <div class="math-block warn">
-                <b>【2. 無尾巴輔助對照 (紅橘色幽靈影)】</b><br>
-                傾覆力矩 τ<sub>body</sub> = M<sub>b</sub>·g·h·sin(θ<sub>d</sub>)<br>
-                = ${state.weight} × 9.81 × ${hCoM.toFixed(2)} × sin(${state.dRoll.toFixed(1)}°) = <b>${tauBodyRoll.toFixed(2)} N·m</b><br>
-                <span style="color:#fb7185;">→ 無尾巴失衡角: ${state.dRoll.toFixed(1)}° (重心偏移 ${noTailOffsetCm.toFixed(1)} cm)</span>
-            </div>
-            <div class="math-block good">
-                <b>【3. 雙雲台尾巴補償與淨力矩】</b><br>
-                等效總力臂 L = ${arm1.toFixed(2)} + ${arm2.toFixed(2)} = <b>${totalTailArm.toFixed(2)} m</b><br>
-                補償力矩 τ<sub>tail</sub> = ${state.tailMass.toFixed(1)} × 9.81 × ${totalTailArm.toFixed(2)} × sin(${(state.pan1 + state.pan2 * 0.85).toFixed(1)}°) = <b>${tauTailRoll.toFixed(2)} N·m</b><br>
-                淨力矩 τ<sub>net</sub> = ${tauBodyRoll.toFixed(2)} + (${tauTailRoll.toFixed(2)}) = <b>${netTorqueRoll.toFixed(2)} N·m</b><br>
-                <span style="color:#00f5d4;">→ 修正後傾角: ${correctedRollDeg.toFixed(1)}° (偏移減至 ${withTailOffsetCm.toFixed(1)} cm，穩定度提升 ${improvementPct}%)</span>
-            </div>
-        `;
+        // 平滑追隨目標角度
+        currentTailYaw += (targetTailYaw - currentTailYaw) * 0.2;
+        currentTailPitch += (targetTailPitch - currentTailPitch) * 0.2;
 
-        // 7. 計算四顆舵機 PWM 角度 (0° ~ 180°，90° 為中立位) 並傳送給 ESP32
-        const s1 = Math.round(THREE.MathUtils.clamp(90 + state.pan1, 0, 180));
-        const s2 = Math.round(THREE.MathUtils.clamp(90 + state.tilt1, 0, 180));
-        const s3 = Math.round(THREE.MathUtils.clamp(90 + state.pan2, 0, 180));
-        const s4 = Math.round(THREE.MathUtils.clamp(90 + state.tilt2, 0, 180));
-        sendFourServosToESP32(s1, s2, s3, s4);
+        // 1. 套用至【第一組雲台 Gimbal-1】 (Servo #1 Pan, Servo #2 Tilt)
+        const g1YawRad = THREE.MathUtils.degToRad(currentTailYaw);
+        const g1PitchRad = THREE.MathUtils.degToRad(currentTailPitch);
+        gimbal1PanPivot.rotation.y = g1YawRad;
+        gimbal1TiltPivot.rotation.x = g1PitchRad;
 
+        // 2. 套用至【第二組雲台 Gimbal-2】 (Servo #3 Mid-Pan, Servo #4 Mid-Tilt)
+        const g2YawDeg = THREE.MathUtils.clamp(currentTailYaw * gimbal2Ratio, -70, 70);
+        const g2PitchDeg = THREE.MathUtils.clamp(currentTailPitch * gimbal2Ratio, -55, 55);
+        const g2YawRad = THREE.MathUtils.degToRad(g2YawDeg);
+        const g2PitchRad = THREE.MathUtils.degToRad(g2PitchDeg);
+        gimbal2PanPivot.rotation.y = g2YawRad;
+        gimbal2TiltPivot.rotation.x = g2PitchRad;
+
+        // 尾端 3 節柔性跟隨彎曲
+        outerTailSegments.forEach((seg, idx) => {
+            const flex = 0.28 - idx * 0.06;
+            seg.rotation.y = g2YawRad * flex;
+            seg.rotation.x = g2PitchRad * flex;
+        });
+
+        // 3. 物理力矩與重心位置即時計算
+        const g = 9.81; // 重力加速度 (m/s^2)
+        const tailMassKg = 3.2; // 雙雲台與機械尾巴等效配重質量 (kg)
+        const baseArmM = 0.72 * (tailLengthPct / 100); // 第一段有效力臂 (m)
+        const totalArmM = baseArmM * (1 + 0.55 * gimbal2Ratio); // 雙雲台串聯等效總力臂 (m)
+
+        // 尾巴產生的側向與俯仰牽引力矩 (N·m)
+        const tailYawTorqueNm = tailMassKg * g * totalArmM * Math.sin(g1YawRad + g2YawRad * 0.5);
+        const tailPitchTorqueNm = tailMassKg * g * totalArmM * Math.sin(g1PitchRad + g2PitchRad * 0.5);
+
+        // 人物質心高度 (m) 與慣性抗傾力矩係數
+        const bodyComHeightM = (userHeight / 100) * 0.56;
+        const bodyRestoringFactor = userWeight * g * bodyComHeightM; // M * g * h
+
+        // 計算受迫平衡傾斜角: sin(phi) = tau_tail / (M * g * h) * 動態放大係數
+        const sinRoll = THREE.MathUtils.clamp((tailYawTorqueNm * 11.5) / bodyRestoringFactor, -0.70, 0.70);
+        const sinPitch = THREE.MathUtils.clamp((-tailPitchTorqueNm * 8.5) / bodyRestoringFactor, -0.55, 0.55);
+
+        const drivenRollDeg = THREE.MathUtils.radToDeg(Math.asin(sinRoll));
+        const drivenPitchDeg = THREE.MathUtils.radToDeg(Math.asin(sinPitch));
+        const drivenTurnDeg = THREE.MathUtils.clamp(-(currentTailYaw + g2YawDeg * 0.5) * (65 / userWeight) * 0.22, -28, 28);
+
+        charRoll += (drivenRollDeg - charRoll) * 0.14;
+        charPitch += (drivenPitchDeg - charPitch) * 0.14;
+        charTurnYaw += (drivenTurnDeg - charTurnYaw) * 0.14;
+
+        pivotGroup.rotation.z = -THREE.MathUtils.degToRad(charRoll);
+        pivotGroup.rotation.x = THREE.MathUtils.degToRad(charPitch);
+        pivotGroup.rotation.y = THREE.MathUtils.degToRad(charTurnYaw);
+
+        // 4. 取得即時 3D 質心世界座標並更新地面投影指示器
+        pivotGroup.updateMatrixWorld(true);
+        comSphere.getWorldPosition(comWorldPos);
+
+        // 換算為以人物腳底中心 (-1.3, 0, 0) 為原點的相對質心偏移 (公分 cm)
+        const comOffsetX_cm = (comWorldPos.x - (-1.3)) * 100;
+        const comHeightY_cm = comWorldPos.y * 100;
+        const comOffsetZ_cm = comWorldPos.z * 100;
+        const radialOffsetCm = Math.hypot(comOffsetX_cm, comOffsetZ_cm);
+        const maxSafeRadiusCm = 45.0; // 雙腳支撐面安全半徑 45cm
+        const stabilityPct = THREE.MathUtils.clamp(100 - (radialOffsetCm / maxSafeRadiusCm) * 100, 0, 100);
+
+        // 更新地面投影圓點與鉛垂線位置
+        comGroundDot.position.set(comWorldPos.x, 0.008, comWorldPos.z);
+        comPlumbLine.geometry.setFromPoints([
+            new THREE.Vector3(comWorldPos.x, 0.008, comWorldPos.z),
+            new THREE.Vector3(comWorldPos.x, comWorldPos.y, comWorldPos.z)
+        ]);
+        comShiftLine.geometry.setFromPoints([
+            new THREE.Vector3(-1.3, 0.01, 0),
+            new THREE.Vector3(comWorldPos.x, 0.01, comWorldPos.z)
+        ]);
+
+        // 依穩定度切換質心球與投影圈顏色
+        const statusColor = stabilityPct > 55 ? 0x00ff88 : (stabilityPct > 25 ? 0xffd166 : 0xef476f);
+        comMat.color.setHex(statusColor);
+        comGroundDot.material.color.setHex(statusColor);
+        comPlumbLine.material.color.setHex(statusColor);
+
+        // 5. 輸出 4 顆舵機 PWM 角度 (0° ~ 180°，90° 為中立位)
+        const s1Pan  = Math.round(THREE.MathUtils.clamp(90 + currentTailYaw, 0, 180));
+        const s2Tilt = Math.round(THREE.MathUtils.clamp(90 + currentTailPitch, 0, 180));
+        const s3Pan  = Math.round(THREE.MathUtils.clamp(90 + g2YawDeg, 0, 180));
+        const s4Tilt = Math.round(THREE.MathUtils.clamp(90 + g2PitchDeg, 0, 180));
+
+        // 6. 更新左側即時計算過程回報面板
+        const stabClass = stabilityPct > 55 ? 'calc-good' : (stabilityPct > 25 ? 'calc-highlight' : 'calc-warn');
+        document.getElementById('calc-output').innerHTML =
+            `<b>[質心 3D 座標 CoM]</b> (相對腳底原點)<br>` +
+            `X(左右): <span class="calc-highlight">${comOffsetX_cm >= 0 ? '+' : ''}${comOffsetX_cm.toFixed(1)} cm</span> ｜ Z(前後): <span class="calc-highlight">${comOffsetZ_cm >= 0 ? '+' : ''}${comOffsetZ_cm.toFixed(1)} cm</span><br>` +
+            `Y(質心高度 H): ${comHeightY_cm.toFixed(1)} cm ｜ 水平偏移距: ${radialOffsetCm.toFixed(1)} cm<br>` +
+            `<b>[力矩計算過程]</b><br>` +
+            `1. 有效力臂 L = 0.72×${(tailLengthPct/100).toFixed(2)}×(1+0.55×${gimbal2Ratio.toFixed(2)}) = <b>${totalArmM.toFixed(2)}m</b><br>` +
+            `2. 尾巴力矩 τ = ${tailMassKg}×9.81×${totalArmM.toFixed(2)}×sin(θ) = <span class="calc-highlight">${tailYawTorqueNm.toFixed(2)} N·m</span><br>` +
+            `3. 身體姿態 φ = arcsin(τ / Mgh) → 側傾 <b>${charRoll.toFixed(1)}°</b> / 俯仰 <b>${charPitch.toFixed(1)}°</b><br>` +
+            `4. 支撐面穩定裕度: <span class="${stabClass}">${stabilityPct.toFixed(0)}%</span> ${stabilityPct <= 25 ? '(接近傾倒臨界!)' : ''}<br>` +
+            `<b>[雙雲台 4 舵機輸出]</b><br>` +
+            `雲台1(基座): S1=${s1Pan}°, S2=${s2Tilt}° ｜ 雲台2(中段): S3=${s3Pan}°, S4=${s4Tilt}°`;
+
+        sendTailToESP32(s1Pan, s2Tilt, s3Pan, s4Tilt);
         renderer.render(scene, camera);
     }
 
