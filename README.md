@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WASD 互動式機械尾巴驅動人物系統 (ESP32 BLE)</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, "Microsoft JhengHei", sans-serif;
+            background-color: #121629;
+            color: white;
+            user-select: none;
+        }
+        /* 左側主控制面板 */
+        #ui-panel {
+            position: absolute;
+            top: 14px;
+            left: 14px;
+            width: 325px;
+            max-height: calc(100vh - 28px);
+            overflow-y: auto;
+            background: rgba(18, 22, 41, 0.92);
+            backdrop-filter: blur(10px);
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+            border: 1px solid rgba(0, 245, 212, 0.35);
+            z-index: 10;
+        }
+        #ui-panel::-webkit-scrollbar { width: 5px; }
+        #ui-panel::-webkit-scrollbar-thumb { background: #333b63; border-radius: 4px; }
+
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        h3 { margin: 0; font-size: 15px; color: #00f5d4; }
+        #guideBtn {
+            background: rgba(0, 245, 212, 0.15);
+            border: 1px solid #00f5d4;
+            color: #00f5d4;
+            padding: 4px 10px;
+            font-size: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            flex: none;
+        }
+        #guideBtn:hover { background: #00f5d4; color: #000; }
+
+        .badge-mode {
+            background: rgba(0, 245, 212, 0.12);
+            border: 1px solid rgba(0, 245, 212, 0.3);
+            color: #90e0ef;
+            font-size: 11.5px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
+        .section-title {
+            font-size: 11px;
+            color: #90e0ef;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 12px 0 6px 0;
+            padding-bottom: 3px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .control-group { margin-bottom: 10px; }
+        label { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 3px; color: #d8dee9; }
+        label span:last-child { color: #00f5d4; font-weight: 600; font-family: monospace; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: #00f5d4; margin: 2px 0; }
+
+        .btn-group { display: flex; gap: 6px; margin-bottom: 10px; }
+        button {
+            flex: 1;
+            padding: 7px 6px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12.5px;
+            cursor: pointer;
+            background: #232946;
+            color: white;
+            transition: 0.15s;
+        }
+        button:hover { background: #333b63; }
+        button.active { background: #00f5d4; color: #000; font-weight: bold; }
+
+        #bleBtn {
+            width: 100%;
+            padding: 10px;
+            background: #00b4d8;
+            color: #000;
+            font-weight: bold;
+            margin-top: 8px;
+            font-size: 13px;
+        }
+        #bleBtn.connected { background: #2ec4b6; color: #000; }
+
+        #telemetry {
+            margin-top: 10px;
+            font-size: 11.5px;
+            color: #90e0ef;
+            background: rgba(0,0,0,0.45);
+            padding: 8px;
+            border-radius: 6px;
+            font-family: monospace;
+            line-height: 1.5;
+        }
+
+        /* 右上角：全方向觀察視角列 */
+        #camera-panel {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            background: rgba(18, 22, 41, 0.9);
+            backdrop-filter: blur(8px);
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(76, 201, 240, 0.25);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        #camera-panel .cam-title { font-size: 11px; color: #aaa; text-align: center; }
+        .cam-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+        .cam-grid button { padding: 6px 8px; font-size: 12px; }
+
+        /* 右下角：WASD 互動鍵盤面板 */
+        #wasd-hud {
+            position: absolute;
+            bottom: 18px;
+            right: 18px;
+            background: rgba(18, 22, 41, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px solid rgba(0, 245, 212, 0.35);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        .wasd-title {
+            font-size: 12px;
+            color: #00f5d4;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+        .key-row { display: flex; gap: 8px; }
+        .key-cap {
+            width: 54px;
+            height: 54px;
+            background: #232946;
+            border: 2px solid #3f4875;
+            border-bottom-width: 5px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.08s;
+        }
+        .key-cap span {
+            font-size: 10px;
+            font-weight: normal;
+            color: #90e0ef;
+            margin-top: 2px;
+        }
+        .key-cap.pressed, .key-cap:active {
+            background: #00f5d4;
+            border-color: #00b4d8;
+            color: #000;
+            transform: translateY(3px);
+            border-bottom-width: 2px;
+            box-shadow: 0 0 15px rgba(0, 245, 212, 0.6);
+        }
+        .key-cap.pressed span, .key-cap:active span {
+            color: #000;
+            font-weight: bold;
+        }
+        .wasd-sub {
+            font-size: 11px;
+            color: #aaa;
+            text-align: center;
+        }
+
+        /* 導覽教學彈出視窗 */
+        #guideModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.72);
+            backdrop-filter: blur(5px);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-card {
+            width: 90%;
+            max-width: 560px;
+            background: #1a203c;
+            border: 1px solid #00f5d4;
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        .modal-card h2 { margin: 0 0 12px 0; color: #00f5d4; font-size: 18px; }
+        .step-box {
+            background: rgba(255,255,255,0.05);
+            border-left: 3px solid #00f5d4;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+            border-radius: 0 8px 8px 0;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+        .step-box strong { color: #00f5d4; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
+        #demoTourBtn { background: #00f5d4; color: #000; font-weight: bold; padding: 10px; }
+        #closeModalBtn { background: #333b63; color: white; padding: 10px; }
+    </style>
+</head>
+<body>
+
+<!-- 左側控制面板 -->
+<div id="ui-panel">
+    <div class="header-row">
+        <h3>尾巴驅動人物動態系統</h3>
+        <button id="guideBtn">使用導覽</button>
+    </div>
+
+    <div class="badge-mode">
+        <strong>主控模式：尾巴驅動人物 (標準版 ESP32)</strong><br>
+        使用 <b>WASD</b> 控制右側機械尾巴擺動，尾巴產生的反作用力矩將主動帶動左側人物傾斜與重心轉移！
+    </div>
+
+    <div class="btn-group">
+        <button id="resetAllBtn">歸零回正 (Space)</button>
+        <button id="autoHoldBtn">保持當前尾巴角度</button>
+    </div>
+
+    <div class="section-title">1. 機械尾巴主動控制 (WASD 連動)</div>
+    <div class="control-group">
+        <label><span>尾巴水平擺角 (A 左 / D 右)</span><span id="tailYawVal">0°</span></label>
+        <input type="range" id="tailYawSlider" min="-65" max="65" value="0">
+    </div>
+    <div class="control-group">
+        <label><span>尾巴垂直俯仰 (W 上抬 / S 下壓)</span><span id="tailPitchVal">0°</span></label>
+        <input type="range" id="tailPitchSlider" min="-45" max="45" value="0">
+    </div>
+    <div class="control-group">
+        <label><span>尾巴伸縮長度 (Q 收短 / E 放長)</span><span id="tailLenVal">100%</span></label>
+        <input type="range" id="tailLenSlider" min="30" max="150" value="100">
+    </div>
+
+    <div class="section-title">2. 人物受影響體型參數 (慣性阻抗)</div>
+    <div class="control-group">
+        <label><span>人物身高 (重心高度力臂)</span><span id="heightVal">170 cm</span></label>
+        <input type="range" id="heightSlider" min="140" max="200" value="170">
+    </div>
+    <div class="control-group">
+        <label><span>人物體重 (越輕越容易被尾巴帶動)</span><span id="weightVal">65 kg</span></label>
+        <input type="range" id="weightSlider" min="40" max="120" value="65">
+    </div>
+    <div class="control-group">
+        <label><span>尾巴力矩傳導效率 (影響人物幅度)</span><span id="couplingVal">1.0x</span></label>
+        <input type="range" id="couplingSlider" min="0.4" max="2.0" step="0.1" value="1.0">
+    </div>
+
+    <button id="bleBtn">連線 ESP32 同步實體尾巴</button>
+    <div id="telemetry">
+        系統狀態：待機靜止 (中立位)<br>
+        人物受迫傾斜 -> 側傾: 0.0° | 俯仰: 0.0°<br>
+        ESP32 舵機 -> Pan(GPIO18): 90° | Tilt(GPIO19): 90°
+    </div>
+</div>
+
+<!-- 右上角：全方向觀察視角列 -->
+<div id="camera-panel">
+    <div class="cam-title">全方向觀察視角 (滑鼠拖曳/滾輪縮放)</div>
+    <div class="cam-grid">
+        <button onclick="setCameraView('front', this)">正面視角</button>
+        <button onclick="s
