@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>雙雲台四舵機機械尾巴 — 質心(CoM)與力矩即時物理模擬系統</title>
+    <title>雙雲台四舵機機械尾巴 — 全自動巡航導覽與質心(CoM)物理模擬</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -14,15 +14,15 @@
             color: #e2e8f0;
             user-select: none;
         }
-        /* 左側控制面板：四舵機精細控制與外力/姿態設定 */
+        /* 左側控制面板 */
         #left-panel {
             position: absolute;
             top: 12px;
             left: 12px;
-            width: 340px;
+            width: 345px;
             max-height: calc(100vh - 24px);
             overflow-y: auto;
-            background: rgba(17, 21, 38, 0.93);
+            background: rgba(17, 21, 38, 0.94);
             backdrop-filter: blur(10px);
             padding: 14px;
             border-radius: 12px;
@@ -39,7 +39,7 @@
             color: #38bdf8;
             font-weight: bold;
             letter-spacing: 0.5px;
-            margin: 12px 0 6px 0;
+            margin: 11px 0 6px 0;
             padding-bottom: 3px;
             border-bottom: 1px solid rgba(255,255,255,0.12);
         }
@@ -64,13 +64,14 @@
         }
         .step-btn:hover { background: #00f5d4; color: #000; }
 
-        .btn-group { display: flex; gap: 6px; margin-bottom: 8px; }
+        .btn-group { display: flex; gap: 5px; margin-bottom: 8px; flex-wrap: wrap; }
         button.action-btn {
             flex: 1;
+            min-width: 95px;
             padding: 7px 6px;
             border: 1px solid #334155;
             border-radius: 6px;
-            font-size: 12px;
+            font-size: 11.5px;
             cursor: pointer;
             background: #1e293b;
             color: #f8fafc;
@@ -78,6 +79,37 @@
         }
         button.action-btn:hover { background: #334155; }
         button.action-btn.active { background: #00f5d4; color: #000; font-weight: bold; border-color: #00f5d4; }
+        button.cruise-btn {
+            width: 100%;
+            padding: 9px;
+            margin-bottom: 8px;
+            border-radius: 7px;
+            border: 1px solid #f472b6;
+            background: rgba(244, 114, 182, 0.15);
+            color: #f472b6;
+            font-weight: bold;
+            font-size: 12.5px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button.cruise-btn.active {
+            background: linear-gradient(90deg, #f472b6, #00f5d4);
+            color: #000;
+            border-color: transparent;
+            box-shadow: 0 0 15px rgba(244, 114, 182, 0.45);
+        }
+
+        #cruiseBanner {
+            display: none;
+            background: rgba(244, 114, 182, 0.14);
+            border: 1px solid rgba(244, 114, 182, 0.45);
+            color: #fbcfe8;
+            font-size: 11.5px;
+            padding: 6px 9px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
 
         #bleBtn {
             width: 100%;
@@ -165,6 +197,7 @@
         .formula-box .hl-yellow { color: #facc15; font-weight: bold; }
         .formula-box .hl-red { color: #f87171; font-weight: bold; }
         .formula-box .hl-cyan { color: #00f5d4; font-weight: bold; }
+        .formula-box .hl-pink { color: #f472b6; font-weight: bold; }
 
         /* 右下角：雙雲台四舵機互動按鍵盤 */
         #wasd-hud {
@@ -222,18 +255,18 @@
         }
         .key-cap.pressed span, .key-cap:active span { color: #000; font-weight: bold; }
 
-        /* 場景底部圖例 */
+        /* 底部圖例 */
         #legend-bar {
             position: absolute;
             bottom: 12px;
-            left: 365px;
+            left: 368px;
             background: rgba(17, 21, 38, 0.85);
             padding: 7px 12px;
             border-radius: 8px;
             border: 1px solid rgba(255,255,255,0.12);
             font-size: 11.5px;
             display: flex;
-            gap: 14px;
+            gap: 12px;
             z-index: 9;
         }
         .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
@@ -241,12 +274,17 @@
 </head>
 <body>
 
-<!-- 左側面板：雙雲台四舵機精細控制 & 無尾巴基準調節 -->
+<!-- 左側面板 -->
 <div id="left-panel">
     <h3>
         <span>雙雲台四舵機尾巴系統</span>
-        <button class="action-btn" id="resetBtn" style="flex:none; padding:4px 9px;">全部歸零</button>
+        <button class="action-btn" id="resetBtn" style="flex:none; padding:4px 9px; min-width:auto;">全部歸零</button>
     </h3>
+
+    <button class="cruise-btn" id="autoCruiseBtn">啟動全自動連續巡航導覽</button>
+    <div id="cruiseBanner">
+        <b>全自動巡航導覽中：</b><span id="cruiseStageText">階段 1/4 — 左右側傾波浪平衡</span>
+    </div>
 
     <div class="btn-group">
         <button class="action-btn active" id="modeManualBtn">手動控制四舵機</button>
@@ -273,8 +311,8 @@
     <div class="control-group">
         <label><span>人物身高 / 體重 (影響質心高度)</span><span class="val" id="hwVal">170cm / 65kg</span></label>
         <div class="slider-row">
-            <input type="range" id="heightSlider" min="140" max="200" step="1" value="170" title="身高">
-            <input type="range" id="weightSlider" min="40" max="120" step="1" value="65" title="體重">
+            <input type="range" id="heightSlider" min="140" max="200" step="1" value="170">
+            <input type="range" id="weightSlider" min="40" max="120" step="1" value="65">
         </div>
     </div>
 
@@ -296,9 +334,9 @@
         </div>
     </div>
 
-    <div class="section-title">3. 雲台二 (尾端雙舵機 -> 第二截運動軸)</div>
+    <div class="section-title">3. 雲台二 (尾端粉色/黃色雙舵機 -> 第二截軸)</div>
     <div class="control-group">
-        <label><span>舵機 3：尾端水平 Pan 2 (J/L)</span><span class="val" id="s3Val">0.0° (PWM 90°)</span></label>
+        <label><span style="color:#f472b6;">● 舵機 3 (粉)：尾端水平 Pan 2 (J/L)</span><span class="val" id="s3Val" style="color:#f472b6;">0.0° (PWM 90°)</span></label>
         <div class="slider-row">
             <button class="step-btn" onclick="nudgeServo(3, -0.5)">-</button>
             <input type="range" id="s3Slider" min="-85" max="85" step="0.5" value="0">
@@ -306,7 +344,7 @@
         </div>
     </div>
     <div class="control-group">
-        <label><span>舵機 4：尾端俯仰 Tilt 2 (I/K)</span><span class="val" id="s4Val">0.0° (PWM 90°)</span></label>
+        <label><span style="color:#facc15;">● 舵機 4 (黃)：尾端俯仰 Tilt 2 (I/K)</span><span class="val" id="s4Val" style="color:#facc15;">0.0° (PWM 90°)</span></label>
         <div class="slider-row">
             <button class="step-btn" onclick="nudgeServo(4, -0.5)">-</button>
             <input type="range" id="s4Slider" min="-80" max="80" step="0.5" value="0">
@@ -382,7 +420,7 @@
             </div>
         </div>
         <div class="pad-group">
-            <div class="pad-label">雲台二 (尾端雙舵機)</div>
+            <div class="pad-label" style="color:#f472b6;">雲台二 (粉色/黃色尾端雙舵機)</div>
             <div class="key-row">
                 <div class="key-cap" id="key-i" data-key="i">I<span>Tilt2+</span></div>
             </div>
@@ -397,10 +435,10 @@
 
 <!-- 底部圖例說明 -->
 <div id="legend-bar">
-    <div><span class="dot" style="background:#ef4444;"></span>無尾巴身體質心 (No-Tail CoM)</div>
-    <div><span class="dot" style="background:#facc15;"></span>含雙軸尾巴總質心 (Total CoM)</div>
-    <div><span class="dot" style="background:#64748b;"></span>灰色不可動結構件</div>
-    <div><span class="dot" style="background:#00f5d4;"></span>雙雲台四舵機 & 兩截運動軸</div>
+    <div><span class="dot" style="background:#ef4444;"></span>無尾巴質心</div>
+    <div><span class="dot" style="background:#facc15;"></span>含尾巴總質心</div>
+    <div><span class="dot" style="background:#64748b;"></span>不可動灰色長方體</div>
+    <div><span class="dot" style="background:#f472b6;"></span>尾端粉色舵機(Pan2)</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -411,9 +449,9 @@
     scene.fog = new THREE.FogExp2(0x111526, 0.02);
 
     const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 100);
-    let camAngleY = 0.42;
-    let camAngleX = 0.30;
-    let camDist = 5.4;
+    let camAngleY = 0.48;
+    let camAngleX = 0.34;
+    let camDist = 5.3;
 
     function updateCameraPosition() {
         camera.position.x = camDist * Math.sin(camAngleY) * Math.cos(camAngleX);
@@ -432,7 +470,7 @@
             case 'left':  camAngleY = -Math.PI / 2; camAngleX = 0.15; camDist = 5.0; break;
             case 'right': camAngleY = Math.PI / 2; camAngleX = 0.15; camDist = 5.0; break;
             case 'top':   camAngleY = 0; camAngleX = 1.48; camDist = 5.8; break;
-            case 'iso':   camAngleY = 0.42; camAngleX = 0.30; camDist = 5.4; break;
+            case 'iso':   camAngleY = 0.48; camAngleX = 0.34; camDist = 5.3; break;
         }
         updateCameraPosition();
     };
@@ -456,18 +494,18 @@
         updateCameraPosition();
     });
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.78));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
     dirLight.position.set(5, 12, 7);
     scene.add(dirLight);
     scene.add(new THREE.GridHelper(14, 14, 0x38bdf8, 0x1e293b));
 
-    // ================= 2. 材質定義：灰色不可動長方體 vs 可動雲台運動軸 =================
+    // ================= 2. 材質定義 =================
     const staticGrayMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.65, metalness: 0.25 });
     const darkGrayMat   = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7, metalness: 0.3 });
     const servoBodyMat  = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4, metalness: 0.5 });
     const gimbalFrameMat= new THREE.MeshStandardMaterial({ color: 0x00f5d4, roughness: 0.3, metalness: 0.5 });
-    const gimbal2Mat    = new THREE.MeshStandardMaterial({ color: 0xf472b6, roughness: 0.3, metalness: 0.5 }); // 尾端雲台二高亮色方便辨識運動
+    const pinkServoMat  = new THREE.MeshStandardMaterial({ color: 0xf472b6, emissive: 0x4a0e2e, roughness: 0.25, metalness: 0.4 });
     const movingAxisMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.25, metalness: 0.6 });
     const counterMassMat= new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.3, metalness: 0.5 });
 
@@ -539,7 +577,7 @@
     tailSystemRoot.position.set(1.2, 0, 0.3);
     scene.add(tailSystemRoot);
 
-    // 不可動灰色長方體組件
+    // 不可動灰色長方體結構
     const staticBaseBox = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.14, 0.85), staticGrayMat);
     staticBaseBox.position.y = 0.07;
     tailSystemRoot.add(staticBaseBox);
@@ -593,25 +631,35 @@
     arm1Mesh.position.set(0, 0, -0.35);
     gimbal1TiltGroup.add(arm1Mesh);
 
-    // --- 【雲台二 (尾端雙軸雲台)】 ---
+    // --- 【雲台二 (尾端粉色/黃色雙軸雲台)】 ---
     const gimbal2Root = new THREE.Group();
     gimbal2Root.position.set(0, 0, -0.70);
     gimbal1TiltGroup.add(gimbal2Root);
 
+    // 粉色馬達本體 (Servo 3: Pan 2)
     const servo3Mesh = createServoModel(0xf472b6);
     gimbal2Root.add(servo3Mesh);
 
+    // 粉色雲台旋轉組 (繞 Y 軸水平轉動，帶動整個雲台二與第二截運動軸左右擺動)
     const gimbal2PanGroup = new THREE.Group();
     gimbal2Root.add(gimbal2PanGroup);
 
-    const g2Bracket = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.16, 0.15), gimbal2Mat);
-    gimbal2PanGroup.add(g2Bracket);
+    // 【視覺強化】粉色旋轉臂與方向翼，讓粉色馬達的水平旋轉一目了然
+    const pinkBracket = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.16, 0.22), pinkServoMat);
+    gimbal2PanGroup.add(pinkBracket);
+    const pinkWingL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.14), pinkServoMat);
+    pinkWingL.position.set(-0.18, 0.04, -0.05);
+    const pinkWingR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.14), pinkServoMat);
+    pinkWingR.position.set(0.18, 0.04, -0.05);
+    gimbal2PanGroup.add(pinkWingL, pinkWingR);
 
+    // 黃色馬達本體 (Servo 4: Tilt 2)
     const servo4Mesh = createServoModel(0xfacc15);
     servo4Mesh.rotation.z = Math.PI / 2;
-    servo4Mesh.position.set(0.15, 0, 0);
+    servo4Mesh.position.set(0.18, 0, 0);
     gimbal2PanGroup.add(servo4Mesh);
 
+    // 黃色俯仰旋轉組 (繞 X 軸上下擺動)
     const gimbal2TiltGroup = new THREE.Group();
     gimbal2PanGroup.add(gimbal2TiltGroup);
 
@@ -625,7 +673,7 @@
     tipMassMesh.position.set(0, 0, -0.65);
     gimbal2TiltGroup.add(tipMassMesh);
 
-    // ================= 5. 控制狀態與微調互動邏輯 =================
+    // ================= 5. 控制狀態、全自動巡航與微調邏輯 =================
     const state = {
         bodyRoll: 0,
         bodyPitch: 0,
@@ -633,21 +681,27 @@
         weightKg: 65,
         s1: 0,          // 雲台一 Pan 1
         s2: 0,          // 雲台一 Tilt 1
-        s3: 0,          // 雲台二 Pan 2 (接近尾端)
-        s4: 0,          // 雲台二 Tilt 2 (接近尾端)
+        s3: 0,          // 雲台二 Pan 2 (粉色馬達)
+        s4: 0,          // 雲台二 Tilt 2 (黃色馬達)
         arm1Len: 0.70,
         arm2Len: 0.65,
         autoComp: false,
+        autoCruise: true, // 預設開啟全自動連續巡航導覽，讓畫面一進來就全自動運作！
         fineMode: false
     };
 
     const keys = {};
+    function stopAutoModes() {
+        state.autoCruise = false;
+        state.autoComp = false;
+        updateModeBtns();
+    }
+
     window.addEventListener('keydown', (e) => {
         const k = e.key.toLowerCase();
         if (k === 'shift') { setFineMode(true); return; }
         if (['w','a','s','d','i','j','k','l'].includes(k)) {
-            state.autoComp = false;
-            updateModeBtns();
+            stopAutoModes();
             keys[k] = true;
             const el = document.getElementById('key-' + k);
             if (el) el.classList.add('pressed');
@@ -665,7 +719,7 @@
 
     document.querySelectorAll('.key-cap').forEach(btn => {
         const k = btn.dataset.key;
-        const on = (e) => { e.preventDefault(); state.autoComp = false; updateModeBtns(); keys[k] = true; btn.classList.add('pressed'); };
+        const on = (e) => { e.preventDefault(); stopAutoModes(); keys[k] = true; btn.classList.add('pressed'); };
         const off = () => { keys[k] = false; btn.classList.remove('pressed'); };
         btn.addEventListener('mousedown', on);
         btn.addEventListener('mouseup', off);
@@ -683,12 +737,13 @@
     document.getElementById('fineModeBtn').onclick = () => setFineMode(!state.fineMode);
 
     window.nudgeVal = function(prop, delta) {
+        state.autoCruise = false;
+        updateModeBtns();
         state[prop] = THREE.MathUtils.clamp(state[prop] + delta, prop === 'bodyRoll' ? -40 : -35, prop === 'bodyRoll' ? 40 : 35);
         syncUI();
     };
     window.nudgeServo = function(idx, delta) {
-        state.autoComp = false;
-        updateModeBtns();
+        stopAutoModes();
         const limits = { 1: 75, 2: 60, 3: 85, 4: 80 };
         const key = 's' + idx;
         state[key] = THREE.MathUtils.clamp(state[key] + delta, -limits[idx], limits[idx]);
@@ -696,36 +751,51 @@
     };
 
     function updateModeBtns() {
-        document.getElementById('modeManualBtn').classList.toggle('active', !state.autoComp);
-        document.getElementById('modeAutoCompBtn').classList.toggle('active', state.autoComp);
+        const cruiseBtn = document.getElementById('autoCruiseBtn');
+        const cruiseBanner = document.getElementById('cruiseBanner');
+        cruiseBtn.classList.toggle('active', state.autoCruise);
+        cruiseBtn.innerText = state.autoCruise ? "全自動連續巡航導覽中 (點擊停止)" : "啟動全自動連續巡航導覽";
+        cruiseBanner.style.display = state.autoCruise ? "block" : "none";
+
+        document.getElementById('modeManualBtn').classList.toggle('active', !state.autoComp && !state.autoCruise);
+        document.getElementById('modeAutoCompBtn').classList.toggle('active', state.autoComp && !state.autoCruise);
     }
-    document.getElementById('modeManualBtn').onclick = () => { state.autoComp = false; updateModeBtns(); };
+
+    document.getElementById('autoCruiseBtn').onclick = () => {
+        state.autoCruise = !state.autoCruise;
+        if (state.autoCruise) state.autoComp = false;
+        updateModeBtns();
+    };
+
+    document.getElementById('modeManualBtn').onclick = () => {
+        stopAutoModes();
+    };
+
     document.getElementById('modeAutoCompBtn').onclick = () => {
+        state.autoCruise = false;
         state.autoComp = true;
-        // 如果開啟自動補償時身體角度為 0，預設給一個 20° 側傾示範，讓使用者立刻看到雲台一與雲台二同時作動
         if (Math.abs(state.bodyRoll) < 0.5 && Math.abs(state.bodyPitch) < 0.5) {
-            state.bodyRoll = 20.0;
+            state.bodyRoll = 22.0;
         }
         updateModeBtns();
         syncUI();
     };
 
     document.getElementById('resetBtn').onclick = () => {
+        stopAutoModes();
         state.bodyRoll = 0; state.bodyPitch = 0;
         state.s1 = 0; state.s2 = 0; state.s3 = 0; state.s4 = 0;
-        state.autoComp = false;
-        updateModeBtns();
         syncUI();
     };
 
-    document.getElementById('bodyRollSlider').oninput = (e) => { state.bodyRoll = parseFloat(e.target.value); syncUI(); };
-    document.getElementById('bodyPitchSlider').oninput = (e) => { state.bodyPitch = parseFloat(e.target.value); syncUI(); };
+    document.getElementById('bodyRollSlider').oninput = (e) => { state.autoCruise = false; updateModeBtns(); state.bodyRoll = parseFloat(e.target.value); syncUI(); };
+    document.getElementById('bodyPitchSlider').oninput = (e) => { state.autoCruise = false; updateModeBtns(); state.bodyPitch = parseFloat(e.target.value); syncUI(); };
     document.getElementById('heightSlider').oninput = (e) => { state.heightCm = parseFloat(e.target.value); syncUI(); };
     document.getElementById('weightSlider').oninput = (e) => { state.weightKg = parseFloat(e.target.value); syncUI(); };
-    document.getElementById('s1Slider').oninput = (e) => { state.autoComp = false; updateModeBtns(); state.s1 = parseFloat(e.target.value); syncUI(); };
-    document.getElementById('s2Slider').oninput = (e) => { state.autoComp = false; updateModeBtns(); state.s2 = parseFloat(e.target.value); syncUI(); };
-    document.getElementById('s3Slider').oninput = (e) => { state.autoComp = false; updateModeBtns(); state.s3 = parseFloat(e.target.value); syncUI(); };
-    document.getElementById('s4Slider').oninput = (e) => { state.autoComp = false; updateModeBtns(); state.s4 = parseFloat(e.target.value); syncUI(); };
+    document.getElementById('s1Slider').oninput = (e) => { stopAutoModes(); state.s1 = parseFloat(e.target.value); syncUI(); };
+    document.getElementById('s2Slider').oninput = (e) => { stopAutoModes(); state.s2 = parseFloat(e.target.value); syncUI(); };
+    document.getElementById('s3Slider').oninput = (e) => { stopAutoModes(); state.s3 = parseFloat(e.target.value); syncUI(); };
+    document.getElementById('s4Slider').oninput = (e) => { stopAutoModes(); state.s4 = parseFloat(e.target.value); syncUI(); };
     document.getElementById('arm1Slider').oninput = (e) => { state.arm1Len = parseFloat(e.target.value); syncUI(); };
     document.getElementById('arm2Slider').oninput = (e) => { state.arm2Len = parseFloat(e.target.value); syncUI(); };
 
@@ -760,6 +830,7 @@
         arm2Mesh.position.z = -state.arm2Len / 2;
         tipMassMesh.position.z = -state.arm2Len;
     }
+    updateModeBtns();
     syncUI();
 
     // ================= 6. ESP32 BLE 藍牙四舵機同步 =================
@@ -794,14 +865,17 @@
         } catch (e) {}
     }
 
-    // ================= 7. 即時物理運動學與質心(CoM)計算主迴圈 =================
+    // ================= 7. 全自動巡航與即時質心(CoM)計算主迴圈 =================
     const g = 9.81;
+    const clock = new THREE.Clock();
 
     function animate() {
         requestAnimationFrame(animate);
+        const t = clock.getElapsedTime();
 
         const step = state.fineMode ? 0.2 : 2.0;
         let changed = false;
+
         if (keys.a) { state.s1 = THREE.MathUtils.clamp(state.s1 - step, -75, 75); changed = true; }
         if (keys.d) { state.s1 = THREE.MathUtils.clamp(state.s1 + step, -75, 75); changed = true; }
         if (keys.w) { state.s2 = THREE.MathUtils.clamp(state.s2 + step, -60, 60); changed = true; }
@@ -811,16 +885,48 @@
         if (keys.i) { state.s4 = THREE.MathUtils.clamp(state.s4 + step, -80, 80); changed = true; }
         if (keys.k) { state.s4 = THREE.MathUtils.clamp(state.s4 - step, -80, 80); changed = true; }
 
-        // 【修正】雙雲台閉迴路重心補償演算法：確保雲台一與尾端雲台二同步協同作動
-        if (state.autoComp) {
-            // 1. 側傾補償 (Roll -> 由雲台一 Pan1 與 尾端雲台二 Pan2 共同向反方向大幅度甩動)
-            const targetS1 = THREE.MathUtils.clamp(-state.bodyRoll * 1.15, -75, 75);
-            const targetS3 = THREE.MathUtils.clamp(-state.bodyRoll * 1.45, -85, 85); // 尾端雲台二加倍延伸擺幅
+        // 【全自動連續巡航導覽模式】4 個循環階段不間斷展示雙雲台與粉色馬達全向連動
+        if (state.autoCruise) {
+            const cycle = t % 24; // 每 24 秒一個完整循環，無限重複
+            const stageEl = document.getElementById('cruiseStageText');
 
-            // 2. 前後俯仰補償 (Pitch -> 雲台一抬升 + 尾端雲台二反向折展形成 S 型力臂延伸，或純側傾時微抬增加力矩)
-            const rollLift = Math.abs(state.bodyRoll) * 0.25; // 側傾時微抬尾巴避免觸地並增加視覺動態
+            if (cycle < 6) {
+                stageEl.innerText = "階段 1/4 — 左右側傾波浪平衡 (粉色 Pan2 大幅甩動)";
+                state.bodyRoll = Math.sin(t * 1.4) * 24;
+                state.bodyPitch = Math.cos(t * 0.7) * 5;
+            } else if (cycle < 12) {
+                stageEl.innerText = "階段 2/4 — 尾端粉色馬達(Servo 3)獨立掃描與第二軸折展";
+                state.bodyRoll = Math.sin(t * 0.9) * 14;
+                state.bodyPitch = Math.sin(t * 1.1) * 12;
+            } else if (cycle < 18) {
+                stageEl.innerText = "階段 3/4 — 前後俯仰重心拉回 (雙雲台 S 型力臂延伸)";
+                state.bodyRoll = Math.cos(t * 0.8) * 8;
+                state.bodyPitch = Math.sin(t * 1.3) * 20;
+            } else {
+                stageEl.innerText = "階段 4/4 — 八字形全向動態平衡巡航";
+                state.bodyRoll = Math.sin(t * 1.2) * 22;
+                state.bodyPitch = Math.sin(t * 2.4) * 14;
+            }
+
+            // 雙雲台協同補償 + 粉色馬達(s3)主動大角度導向
+            const targetS1 = THREE.MathUtils.clamp(-state.bodyRoll * 1.1, -75, 75);
+            const targetS3 = THREE.MathUtils.clamp(-state.bodyRoll * 1.65 + Math.sin(t * 1.8) * 22, -85, 85);
+            const targetS2 = THREE.MathUtils.clamp(-state.bodyPitch * 1.15 + Math.abs(state.bodyRoll) * 0.3, -60, 60);
+            const targetS4 = THREE.MathUtils.clamp(state.bodyPitch * 1.45 - Math.abs(state.bodyRoll) * 0.25, -80, 80);
+
+            state.s1 += (targetS1 - state.s1) * 0.14;
+            state.s2 += (targetS2 - state.s2) * 0.14;
+            state.s3 += (targetS3 - state.s3) * 0.16;
+            state.s4 += (targetS4 - state.s4) * 0.16;
+            changed = true;
+        } 
+        // 【靜態自動重心補償模式】
+        else if (state.autoComp) {
+            const targetS1 = THREE.MathUtils.clamp(-state.bodyRoll * 1.15, -75, 75);
+            const targetS3 = THREE.MathUtils.clamp(-state.bodyRoll * 1.55, -85, 85);
+            const rollLift = Math.abs(state.bodyRoll) * 0.28;
             const targetS2 = THREE.MathUtils.clamp(-state.bodyPitch * 1.1 + rollLift, -60, 60);
-            const targetS4 = THREE.MathUtils.clamp(state.bodyPitch * 1.35 - rollLift * 0.8, -80, 80); // 尾端雲台二反向折展
+            const targetS4 = THREE.MathUtils.clamp(state.bodyPitch * 1.35 - rollLift * 0.8, -80, 80);
 
             state.s1 += (targetS1 - state.s1) * 0.16;
             state.s2 += (targetS2 - state.s2) * 0.16;
@@ -828,13 +934,14 @@
             state.s4 += (targetS4 - state.s4) * 0.16;
             changed = true;
         }
+
         if (changed) syncUI();
 
-        // 套用四顆舵機角度至雙雲台 3D 結構
+        // 套用四顆舵機角度至雙雲台 3D 結構 (明確驅動粉色 Pan 2 與黃色 Tilt 2)
         gimbal1PanGroup.rotation.y  = THREE.MathUtils.degToRad(state.s1);
         gimbal1TiltGroup.rotation.x = THREE.MathUtils.degToRad(state.s2);
-        gimbal2PanGroup.rotation.y  = THREE.MathUtils.degToRad(state.s3);
-        gimbal2TiltGroup.rotation.x = THREE.MathUtils.degToRad(state.s4);
+        gimbal2PanGroup.rotation.y  = THREE.MathUtils.degToRad(state.s3); // 粉色馬達水平轉動
+        gimbal2TiltGroup.rotation.x = THREE.MathUtils.degToRad(state.s4); // 黃色馬達俯仰轉動
 
         // 套用人物基準傾斜角
         bodyPivot.rotation.z = -THREE.MathUtils.degToRad(state.bodyRoll);
@@ -897,26 +1004,26 @@
         document.getElementById('netTorqueVal').innerText = `淨剩餘力矩: ${netTorque.toFixed(1)} N·m`;
 
         const stabEl = document.getElementById('stabilityTag');
-        if (withTailOffsetM < 0.06) {
+        if (withTailOffsetM < 0.07) {
             stabEl.innerText = "狀態：高度穩定 (質心居中)";
             stabEl.style.color = "#00f5d4";
-        } else if (withTailOffsetM < 0.16) {
-            stabEl.innerText = "狀態：輕微偏移 (可維持平衡)";
+        } else if (withTailOffsetM < 0.17) {
+            stabEl.innerText = "狀態：輕微偏移 (維持平衡)";
             stabEl.style.color = "#facc15";
         } else {
-            stabEl.innerText = "狀態：質心越界 (存在傾倒風險)";
+            stabEl.innerText = "狀態：質心越界 (傾倒風險)";
             stabEl.style.color = "#ef4444";
         }
 
         document.getElementById('mathProcessBox').innerHTML =
             `<b>【1. 無尾巴基準質心計算 (紅球)】</b><br>` +
-            `• 身體質量 m_body = ${mBody.toFixed(1)} kg, 質心高 h = ${hComBody.toFixed(2)} m<br>` +
+            `• m_body = ${mBody.toFixed(1)} kg, 質心高 h = ${hComBody.toFixed(2)} m<br>` +
             `• X_body = ${hComBody.toFixed(2)} × sin(${state.bodyRoll.toFixed(1)}°) = <span class="hl-red">${(xBody*100).toFixed(2)} cm</span><br>` +
             `• Z_body = ${hComBody.toFixed(2)} × sin(${state.bodyPitch.toFixed(1)}°) = <span class="hl-red">${(zBody*100).toFixed(2)} cm</span><br>` +
             `• 無尾巴傾倒力矩 τ_body = <span class="hl-red">${noTailTorque.toFixed(1)} N·m</span><br><br>` +
             `<b>【2. 雙雲台運動軸力臂座標】</b><br>` +
             `• 雲台一 (Pan1=${state.s1.toFixed(1)}°, Tilt1=${state.s2.toFixed(1)}°): ΔX₁=${(dx1*100).toFixed(1)}cm<br>` +
-            `• 雲台二 (Pan2=${state.s3.toFixed(1)}°, Tilt2=${state.s4.toFixed(1)}°): ΔX₂=${(dx2*100).toFixed(1)}cm<br><br>` +
+            `• <span class="hl-pink">雲台二 (粉色Pan2=${state.s3.toFixed(1)}°, 黃色Tilt2=${state.s4.toFixed(1)}°)</span>: ΔX₂=${(dx2*100).toFixed(1)}cm<br><br>` +
             `<b>【3. 總系統加權質心公式 (黃球)】</b><br>` +
             `• X_total = (m_body·X_body + m₁·ΔX₁ + m₂·ΔX₂) / ${mTotal.toFixed(1)}<br>` +
             `• X_total = <span class="hl-yellow">${(xTotal*100).toFixed(2)} cm</span> ｜ Z_total = <span class="hl-yellow">${(zTotal*100).toFixed(2)} cm</span><br>` +
