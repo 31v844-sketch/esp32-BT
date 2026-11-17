@@ -296,20 +296,20 @@
         </div>
     </div>
 
-    <div class="section-title">3. 雲台二 (中段雙舵機 -> 第二截運動軸)</div>
+    <div class="section-title">3. 雲台二 (尾端雙舵機 -> 第二截運動軸)</div>
     <div class="control-group">
-        <label><span>舵機 3：中段水平 Pan 2 (J/L)</span><span class="val" id="s3Val">0.0° (PWM 90°)</span></label>
+        <label><span>舵機 3：尾端水平 Pan 2 (J/L)</span><span class="val" id="s3Val">0.0° (PWM 90°)</span></label>
         <div class="slider-row">
             <button class="step-btn" onclick="nudgeServo(3, -0.5)">-</button>
-            <input type="range" id="s3Slider" min="-80" max="80" step="0.5" value="0">
+            <input type="range" id="s3Slider" min="-85" max="85" step="0.5" value="0">
             <button class="step-btn" onclick="nudgeServo(3, 0.5)">+</button>
         </div>
     </div>
     <div class="control-group">
-        <label><span>舵機 4：中段俯仰 Tilt 2 (I/K)</span><span class="val" id="s4Val">0.0° (PWM 90°)</span></label>
+        <label><span>舵機 4：尾端俯仰 Tilt 2 (I/K)</span><span class="val" id="s4Val">0.0° (PWM 90°)</span></label>
         <div class="slider-row">
             <button class="step-btn" onclick="nudgeServo(4, -0.5)">-</button>
-            <input type="range" id="s4Slider" min="-70" max="70" step="0.5" value="0">
+            <input type="range" id="s4Slider" min="-80" max="80" step="0.5" value="0">
             <button class="step-btn" onclick="nudgeServo(4, 0.5)">+</button>
         </div>
     </div>
@@ -382,7 +382,7 @@
             </div>
         </div>
         <div class="pad-group">
-            <div class="pad-label">雲台二 (中段雙舵機)</div>
+            <div class="pad-label">雲台二 (尾端雙舵機)</div>
             <div class="key-row">
                 <div class="key-cap" id="key-i" data-key="i">I<span>Tilt2+</span></div>
             </div>
@@ -463,19 +463,19 @@
     scene.add(new THREE.GridHelper(14, 14, 0x38bdf8, 0x1e293b));
 
     // ================= 2. 材質定義：灰色不可動長方體 vs 可動雲台運動軸 =================
-    const staticGrayMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.65, metalness: 0.25 }); // 不可動灰色長方體
+    const staticGrayMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.65, metalness: 0.25 });
     const darkGrayMat   = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7, metalness: 0.3 });
-    const servoBodyMat  = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4, metalness: 0.5 });  // 伺服舵機外殼
-    const gimbalFrameMat= new THREE.MeshStandardMaterial({ color: 0x00f5d4, roughness: 0.3, metalness: 0.5 });  // 雲台 U 型支架
-    const movingAxisMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.25, metalness: 0.6 }); // 兩截可動運動軸
-    const counterMassMat= new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.3, metalness: 0.5 });  // 運動軸配重塊
+    const servoBodyMat  = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4, metalness: 0.5 });
+    const gimbalFrameMat= new THREE.MeshStandardMaterial({ color: 0x00f5d4, roughness: 0.3, metalness: 0.5 });
+    const gimbal2Mat    = new THREE.MeshStandardMaterial({ color: 0xf472b6, roughness: 0.3, metalness: 0.5 }); // 尾端雲台二高亮色方便辨識運動
+    const movingAxisMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.25, metalness: 0.6 });
+    const counterMassMat= new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.3, metalness: 0.5 });
 
     // ================= 3. 左側：人物基準模型與雙質心(CoM)視覺化 (X = -1.2) =================
     const charRoot = new THREE.Group();
     charRoot.position.set(-1.2, 0, 0);
     scene.add(charRoot);
 
-    // 地面中心基準十字
     const baseAxisLine = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 2.5, 0)]),
         new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.45 })
@@ -485,7 +485,6 @@
     const bodyPivot = new THREE.Group();
     charRoot.add(bodyPivot);
 
-    // 人物造型 (保留米白印花T-Shirt + 深灰短褲 + 白襪)
     function createShirtTexture() {
         const c = document.createElement('canvas'); c.width = 256; c.height = 256;
         const ctx = c.getContext('2d');
@@ -519,8 +518,6 @@
     hair.position.set(0, 2.08, 0.01);
     bodyPivot.add(leftLeg, rightLeg, torso, head, hair);
 
-    // 雙質心視覺化球體與地面投影線
-    // 1) 紅色球：無尾巴輔助時的身體質心 (No-Tail CoM)
     const noTailComSphere = new THREE.Mesh(new THREE.SphereGeometry(0.095, 16, 16), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
     scene.add(noTailComSphere);
     const noTailProjLine = new THREE.Line(
@@ -529,7 +526,6 @@
     );
     scene.add(noTailProjLine);
 
-    // 2) 黃色球：加上雙雲台尾巴後的系統總質心 (Total CoM)
     const totalComSphere = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 16), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
     scene.add(totalComSphere);
     const totalProjLine = new THREE.Line(
@@ -543,17 +539,15 @@
     tailSystemRoot.position.set(1.2, 0, 0.3);
     scene.add(tailSystemRoot);
 
-    // 【不可動部分 1】灰色長方體重型底座
+    // 不可動灰色長方體組件
     const staticBaseBox = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.14, 0.85), staticGrayMat);
     staticBaseBox.position.y = 0.07;
     tailSystemRoot.add(staticBaseBox);
 
-    // 【不可動部分 2】灰色長方體垂直支撐柱
     const staticPillarBox = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.82, 0.22), darkGrayMat);
     staticPillarBox.position.y = 0.55;
     tailSystemRoot.add(staticPillarBox);
 
-    // 【不可動部分 3】灰色長方體頂部安裝平台與固定配重塊
     const staticTopPlatform = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.12, 0.52), staticGrayMat);
     staticTopPlatform.position.set(0, 1.02, 0.04);
     tailSystemRoot.add(staticTopPlatform);
@@ -562,7 +556,6 @@
     staticRearBlock.position.set(0, 1.20, 0.18);
     tailSystemRoot.add(staticRearBlock);
 
-    // 輔助函式：建立單顆伺服舵機模型
     function createServoModel(colorHex) {
         const g = new THREE.Group();
         const body = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.14), servoBodyMat);
@@ -573,7 +566,6 @@
     }
 
     // --- 【雲台一 (基座雙軸雲台)】 ---
-    // Servo 1 (Pan 1 - 水平旋轉軸) 固定於灰色平台上
     const servo1Mesh = createServoModel(0x00f5d4);
     servo1Mesh.position.set(0, 1.17, -0.08);
     tailSystemRoot.add(servo1Mesh);
@@ -582,12 +574,10 @@
     gimbal1PanGroup.position.set(0, 1.28, -0.08);
     tailSystemRoot.add(gimbal1PanGroup);
 
-    // 雲台一 U 型轉動支架
     const g1Bracket = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.18, 0.16), gimbalFrameMat);
     g1Bracket.position.y = 0.06;
     gimbal1PanGroup.add(g1Bracket);
 
-    // Servo 2 (Tilt 1 - 俯仰軸) 側掛在雲台一支架上
     const servo2Mesh = createServoModel(0x38bdf8);
     servo2Mesh.rotation.z = Math.PI / 2;
     servo2Mesh.position.set(0.16, 0.08, 0);
@@ -597,60 +587,56 @@
     gimbal1TiltGroup.position.set(0, 0.08, 0);
     gimbal1PanGroup.add(gimbal1TiltGroup);
 
-    // 【可動部分 1：第一截運動軸 (Proximal Moving Axis)】
+    // 第一截運動軸
     const arm1Mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.70, 16), movingAxisMat);
     arm1Mesh.rotation.x = Math.PI / 2;
     arm1Mesh.position.set(0, 0, -0.35);
     gimbal1TiltGroup.add(arm1Mesh);
 
-    // --- 【雲台二 (中段雙軸雲台)】安裝在第一截運動軸末端 ---
+    // --- 【雲台二 (尾端雙軸雲台)】 ---
     const gimbal2Root = new THREE.Group();
     gimbal2Root.position.set(0, 0, -0.70);
     gimbal1TiltGroup.add(gimbal2Root);
 
-    // Servo 3 (Pan 2 - 中段水平旋轉軸)
-    const servo3Mesh = createServoModel(0x00f5d4);
+    const servo3Mesh = createServoModel(0xf472b6);
     gimbal2Root.add(servo3Mesh);
 
     const gimbal2PanGroup = new THREE.Group();
     gimbal2Root.add(gimbal2PanGroup);
 
-    // 雲台二 U 型轉動支架
-    const g2Bracket = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.15, 0.14), gimbalFrameMat);
+    const g2Bracket = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.16, 0.15), gimbal2Mat);
     gimbal2PanGroup.add(g2Bracket);
 
-    // Servo 4 (Tilt 2 - 中段俯仰軸)
-    const servo4Mesh = createServoModel(0x38bdf8);
+    const servo4Mesh = createServoModel(0xfacc15);
     servo4Mesh.rotation.z = Math.PI / 2;
-    servo4Mesh.position.set(0.14, 0, 0);
+    servo4Mesh.position.set(0.15, 0, 0);
     gimbal2PanGroup.add(servo4Mesh);
 
     const gimbal2TiltGroup = new THREE.Group();
     gimbal2PanGroup.add(gimbal2TiltGroup);
 
-    // 【可動部分 2：第二截運動軸 (Distal Moving Axis)】
+    // 第二截運動軸
     const arm2Mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.65, 16), movingAxisMat);
     arm2Mesh.rotation.x = Math.PI / 2;
     arm2Mesh.position.set(0, 0, -0.325);
     gimbal2TiltGroup.add(arm2Mesh);
 
-    // 末端平衡配重塊 (代表尾巴末端慣性質量 m2)
-    const tipMassMesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.16), counterMassMat);
+    const tipMassMesh = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.18), counterMassMat);
     tipMassMesh.position.set(0, 0, -0.65);
     gimbal2TiltGroup.add(tipMassMesh);
 
     // ================= 5. 控制狀態與微調互動邏輯 =================
     const state = {
-        bodyRoll: 0,    // 外部身體側傾角 (-40 ~ +40)
-        bodyPitch: 0,   // 外部身體前後傾角 (-35 ~ +35)
+        bodyRoll: 0,
+        bodyPitch: 0,
         heightCm: 170,
         weightKg: 65,
-        s1: 0,          // 雲台一 Pan 1 (-75 ~ +75)
-        s2: 0,          // 雲台一 Tilt 1 (-60 ~ +60)
-        s3: 0,          // 雲台二 Pan 2 (-80 ~ +80)
-        s4: 0,          // 雲台二 Tilt 2 (-70 ~ +70)
-        arm1Len: 0.70,  // 第一截運動軸長度 (m)
-        arm2Len: 0.65,  // 第二截運動軸長度 (m)
+        s1: 0,          // 雲台一 Pan 1
+        s2: 0,          // 雲台一 Tilt 1
+        s3: 0,          // 雲台二 Pan 2 (接近尾端)
+        s4: 0,          // 雲台二 Tilt 2 (接近尾端)
+        arm1Len: 0.70,
+        arm2Len: 0.65,
         autoComp: false,
         fineMode: false
     };
@@ -703,7 +689,7 @@
     window.nudgeServo = function(idx, delta) {
         state.autoComp = false;
         updateModeBtns();
-        const limits = { 1: 75, 2: 60, 3: 80, 4: 70 };
+        const limits = { 1: 75, 2: 60, 3: 85, 4: 80 };
         const key = 's' + idx;
         state[key] = THREE.MathUtils.clamp(state[key] + delta, -limits[idx], limits[idx]);
         syncUI();
@@ -714,7 +700,15 @@
         document.getElementById('modeAutoCompBtn').classList.toggle('active', state.autoComp);
     }
     document.getElementById('modeManualBtn').onclick = () => { state.autoComp = false; updateModeBtns(); };
-    document.getElementById('modeAutoCompBtn').onclick = () => { state.autoComp = true; updateModeBtns(); };
+    document.getElementById('modeAutoCompBtn').onclick = () => {
+        state.autoComp = true;
+        // 如果開啟自動補償時身體角度為 0，預設給一個 20° 側傾示範，讓使用者立刻看到雲台一與雲台二同時作動
+        if (Math.abs(state.bodyRoll) < 0.5 && Math.abs(state.bodyPitch) < 0.5) {
+            state.bodyRoll = 20.0;
+        }
+        updateModeBtns();
+        syncUI();
+    };
 
     document.getElementById('resetBtn').onclick = () => {
         state.bodyRoll = 0; state.bodyPitch = 0;
@@ -724,7 +718,6 @@
         syncUI();
     };
 
-    // 綁定滑桿事件
     document.getElementById('bodyRollSlider').oninput = (e) => { state.bodyRoll = parseFloat(e.target.value); syncUI(); };
     document.getElementById('bodyPitchSlider').oninput = (e) => { state.bodyPitch = parseFloat(e.target.value); syncUI(); };
     document.getElementById('heightSlider').oninput = (e) => { state.heightCm = parseFloat(e.target.value); syncUI(); };
@@ -755,12 +748,10 @@
 
         document.getElementById('armLenVal').innerText = `${state.arm1Len.toFixed(2)}m / ${state.arm2Len.toFixed(2)}m`;
 
-        // 更新人物體型比例
         const hScale = state.heightCm / 170;
         const wScale = 0.8 + ((state.weightKg - 40) / 80) * 0.5;
         bodyPivot.scale.set(wScale, hScale, wScale);
 
-        // 更新兩截運動軸幾何長度
         arm1Mesh.scale.y = state.arm1Len / 0.70;
         arm1Mesh.position.z = -state.arm1Len / 2;
         gimbal2Root.position.z = -state.arm1Len;
@@ -804,38 +795,42 @@
     }
 
     // ================= 7. 即時物理運動學與質心(CoM)計算主迴圈 =================
-    const g = 9.81; // 重力加速度 (m/s^2)
+    const g = 9.81;
 
     function animate() {
         requestAnimationFrame(animate);
 
-        // 1. 鍵盤連續微調處理
         const step = state.fineMode ? 0.2 : 2.0;
         let changed = false;
         if (keys.a) { state.s1 = THREE.MathUtils.clamp(state.s1 - step, -75, 75); changed = true; }
         if (keys.d) { state.s1 = THREE.MathUtils.clamp(state.s1 + step, -75, 75); changed = true; }
         if (keys.w) { state.s2 = THREE.MathUtils.clamp(state.s2 + step, -60, 60); changed = true; }
         if (keys.s) { state.s2 = THREE.MathUtils.clamp(state.s2 - step, -60, 60); changed = true; }
-        if (keys.j) { state.s3 = THREE.MathUtils.clamp(state.s3 - step, -80, 80); changed = true; }
-        if (keys.l) { state.s3 = THREE.MathUtils.clamp(state.s3 + step, -80, 80); changed = true; }
-        if (keys.i) { state.s4 = THREE.MathUtils.clamp(state.s4 + step, -70, 70); changed = true; }
-        if (keys.k) { state.s4 = THREE.MathUtils.clamp(state.s4 - step, -70, 70); changed = true; }
+        if (keys.j) { state.s3 = THREE.MathUtils.clamp(state.s3 - step, -85, 85); changed = true; }
+        if (keys.l) { state.s3 = THREE.MathUtils.clamp(state.s3 + step, -85, 85); changed = true; }
+        if (keys.i) { state.s4 = THREE.MathUtils.clamp(state.s4 + step, -80, 80); changed = true; }
+        if (keys.k) { state.s4 = THREE.MathUtils.clamp(state.s4 - step, -80, 80); changed = true; }
 
-        // 若開啟自動重心補償模式，雙雲台自動分配角度抵消身體偏移
+        // 【修正】雙雲台閉迴路重心補償演算法：確保雲台一與尾端雲台二同步協同作動
         if (state.autoComp) {
+            // 1. 側傾補償 (Roll -> 由雲台一 Pan1 與 尾端雲台二 Pan2 共同向反方向大幅度甩動)
             const targetS1 = THREE.MathUtils.clamp(-state.bodyRoll * 1.15, -75, 75);
-            const targetS3 = THREE.MathUtils.clamp(-state.bodyRoll * 0.95, -80, 80);
-            const targetS2 = THREE.MathUtils.clamp(-state.bodyPitch * 1.0, -60, 60);
-            const targetS4 = THREE.MathUtils.clamp(-state.bodyPitch * 0.85, -70, 70);
-            state.s1 += (targetS1 - state.s1) * 0.15;
-            state.s3 += (targetS3 - state.s3) * 0.15;
-            state.s2 += (targetS2 - state.s2) * 0.15;
-            state.s4 += (targetS4 - state.s4) * 0.15;
+            const targetS3 = THREE.MathUtils.clamp(-state.bodyRoll * 1.45, -85, 85); // 尾端雲台二加倍延伸擺幅
+
+            // 2. 前後俯仰補償 (Pitch -> 雲台一抬升 + 尾端雲台二反向折展形成 S 型力臂延伸，或純側傾時微抬增加力矩)
+            const rollLift = Math.abs(state.bodyRoll) * 0.25; // 側傾時微抬尾巴避免觸地並增加視覺動態
+            const targetS2 = THREE.MathUtils.clamp(-state.bodyPitch * 1.1 + rollLift, -60, 60);
+            const targetS4 = THREE.MathUtils.clamp(state.bodyPitch * 1.35 - rollLift * 0.8, -80, 80); // 尾端雲台二反向折展
+
+            state.s1 += (targetS1 - state.s1) * 0.16;
+            state.s2 += (targetS2 - state.s2) * 0.16;
+            state.s3 += (targetS3 - state.s3) * 0.16;
+            state.s4 += (targetS4 - state.s4) * 0.16;
             changed = true;
         }
         if (changed) syncUI();
 
-        // 2. 套用四顆舵機角度至雙雲台 3D 結構
+        // 套用四顆舵機角度至雙雲台 3D 結構
         gimbal1PanGroup.rotation.y  = THREE.MathUtils.degToRad(state.s1);
         gimbal1TiltGroup.rotation.x = THREE.MathUtils.degToRad(state.s2);
         gimbal2PanGroup.rotation.y  = THREE.MathUtils.degToRad(state.s3);
@@ -845,10 +840,9 @@
         bodyPivot.rotation.z = -THREE.MathUtils.degToRad(state.bodyRoll);
         bodyPivot.rotation.x = THREE.MathUtils.degToRad(state.bodyPitch);
 
-        // 3. 精確物理質心 (Center of Mass) 座標與力矩計算
-        // (A) 無尾巴輔助時的純身體質心位置 (相對於支撐中心點 (0,0,0))
-        const mBody = state.weightKg; // kg
-        const hComBody = (state.heightCm / 100) * 0.56; // 成人質心高度約為身高 56%
+        // 精確物理質心 (CoM) 計算
+        const mBody = state.weightKg;
+        const hComBody = (state.heightCm / 100) * 0.56;
         const rollRad = THREE.MathUtils.degToRad(state.bodyRoll);
         const pitchRad = THREE.MathUtils.degToRad(state.bodyPitch);
 
@@ -856,41 +850,33 @@
         const yBody = hComBody * Math.cos(rollRad) * Math.cos(pitchRad);
         const zBody = hComBody * Math.sin(pitchRad);
 
-        // 無尾巴時的水平偏移距離 (m -> cm) 與重力傾倒力矩 (N·m)
         const noTailOffsetM = Math.hypot(xBody, zBody);
         const noTailTorque = mBody * g * noTailOffsetM;
 
-        // 更新紅色「無尾巴質心球」在左側人物模型上的位置
         noTailComSphere.position.set(-1.2 + xBody, yBody, zBody);
         noTailProjLine.geometry.setFromPoints([
             new THREE.Vector3(-1.2 + xBody, yBody, zBody),
             new THREE.Vector3(-1.2 + xBody, 0.01, zBody)
         ]);
 
-        // (B) 雙雲台兩截運動軸的等效質量與三維力臂座標 (相對於人物支撐中心)
-        // 假設雙雲台總等效配重質量 mTail = 8.5 kg (m1=4.0kg 第一截, m2=4.5kg 第二截配重)
         const m1 = 4.0;
         const m2 = 4.5;
         const mTotal = mBody + m1 + m2;
 
-        // 計算第一截運動軸質心相對於雲台一的向量 (放大力臂倍率以便模擬人體背負等效比例)
-        const scaleFactor = 3.2; // 機械尾巴結構槓桿等效比
+        const scaleFactor = 3.2;
         const yaw1 = THREE.MathUtils.degToRad(state.s1);
         const pit1 = THREE.MathUtils.degToRad(state.s2);
         const yaw2 = THREE.MathUtils.degToRad(state.s1 + state.s3);
         const pit2 = THREE.MathUtils.degToRad(state.s2 + state.s4);
 
-        // 第一截運動軸質心相對偏移 (dx1, dy1, dz1)
         const dx1 = (state.arm1Len * 0.5 * scaleFactor) * Math.sin(yaw1) * Math.cos(pit1);
         const dy1 = (state.arm1Len * 0.5 * scaleFactor) * Math.sin(pit1);
         const dz1 = -(state.arm1Len * 0.5 * scaleFactor) * Math.cos(yaw1) * Math.cos(pit1);
 
-        // 第二截運動軸末端質心相對偏移 (dx2, dy2, dz2)
         const dx2 = dx1 * 2 + (state.arm2Len * scaleFactor) * Math.sin(yaw2) * Math.cos(pit2);
         const dy2 = dy1 * 2 + (state.arm2Len * scaleFactor) * Math.sin(pit2);
         const dz2 = dz1 * 2 - (state.arm2Len * scaleFactor) * Math.cos(yaw2) * Math.cos(pit2);
 
-        // (C) 加權平均求出「含雙雲台尾巴的系統總質心 (Total CoM)」
         const xTotal = (mBody * xBody + m1 * dx1 + m2 * dx2) / mTotal;
         const yTotal = (mBody * yBody + m1 * (1.1 + dy1) + m2 * (1.1 + dy2)) / mTotal;
         const zTotal = (mBody * zBody + m1 * (dz1 + 0.35) + m2 * (dz2 + 0.35)) / mTotal;
@@ -898,14 +884,12 @@
         const withTailOffsetM = Math.hypot(xTotal, zTotal);
         const netTorque = mTotal * g * withTailOffsetM;
 
-        // 更新黃色「系統總質心球」位置
         totalComSphere.position.set(-1.2 + xTotal, Math.max(0.1, yTotal), zTotal);
         totalProjLine.geometry.setFromPoints([
             new THREE.Vector3(-1.2 + xTotal, Math.max(0.1, yTotal), zTotal),
             new THREE.Vector3(-1.2 + xTotal, 0.01, zTotal)
         ]);
 
-        // 4. 更新右側即時數值與完整計算過程
         document.getElementById('noTailOffsetVal').innerText = (noTailOffsetM * 100).toFixed(2) + ' cm';
         document.getElementById('noTailTorqueVal').innerText = `傾倒力矩: ${noTailTorque.toFixed(1)} N·m`;
 
@@ -929,16 +913,15 @@
             `• 身體質量 m_body = ${mBody.toFixed(1)} kg, 質心高 h = ${hComBody.toFixed(2)} m<br>` +
             `• X_body = ${hComBody.toFixed(2)} × sin(${state.bodyRoll.toFixed(1)}°) = <span class="hl-red">${(xBody*100).toFixed(2)} cm</span><br>` +
             `• Z_body = ${hComBody.toFixed(2)} × sin(${state.bodyPitch.toFixed(1)}°) = <span class="hl-red">${(zBody*100).toFixed(2)} cm</span><br>` +
-            `• 無尾巴傾倒力矩 τ_body = ${mBody} × 9.81 × ${noTailOffsetM.toFixed(3)} = <span class="hl-red">${noTailTorque.toFixed(1)} N·m</span><br><br>` +
+            `• 無尾巴傾倒力矩 τ_body = <span class="hl-red">${noTailTorque.toFixed(1)} N·m</span><br><br>` +
             `<b>【2. 雙雲台運動軸力臂座標】</b><br>` +
-            `• 第一截軸質心 (m₁=${m1}kg): ΔX₁=${(dx1*100).toFixed(1)}cm, ΔZ₁=${(dz1*100).toFixed(1)}cm<br>` +
-            `• 第二截軸質心 (m₂=${m2}kg): ΔX₂=${(dx2*100).toFixed(1)}cm, ΔZ₂=${(dz2*100).toFixed(1)}cm<br><br>` +
+            `• 雲台一 (Pan1=${state.s1.toFixed(1)}°, Tilt1=${state.s2.toFixed(1)}°): ΔX₁=${(dx1*100).toFixed(1)}cm<br>` +
+            `• 雲台二 (Pan2=${state.s3.toFixed(1)}°, Tilt2=${state.s4.toFixed(1)}°): ΔX₂=${(dx2*100).toFixed(1)}cm<br><br>` +
             `<b>【3. 總系統加權質心公式 (黃球)】</b><br>` +
             `• X_total = (m_body·X_body + m₁·ΔX₁ + m₂·ΔX₂) / ${mTotal.toFixed(1)}<br>` +
             `• X_total = <span class="hl-yellow">${(xTotal*100).toFixed(2)} cm</span> ｜ Z_total = <span class="hl-yellow">${(zTotal*100).toFixed(2)} cm</span><br>` +
             `• 尾巴補償後偏移縮減量：<span class="hl-cyan">${((noTailOffsetM - withTailOffsetM)*100).toFixed(2)} cm</span>`;
 
-        // 5. 發送 4 顆舵機 PWM 角度 (0~180) 至 ESP32
         const pwm1 = Math.round(THREE.MathUtils.clamp(90 + state.s1, 0, 180));
         const pwm2 = Math.round(THREE.MathUtils.clamp(90 + state.s2, 0, 180));
         const pwm3 = Math.round(THREE.MathUtils.clamp(90 + state.s3, 0, 180));
