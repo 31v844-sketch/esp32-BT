@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>雙雲台四舵機機械尾巴 — 雙級獨立重心補償與巡航模擬系統</title>
+    <title>ESP-32S 雙雲台四舵機機械尾巴 — 雙級獨立重心補償與巡航模擬系統</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -14,7 +14,6 @@
             color: #e2e8f0;
             user-select: none;
         }
-        /* 左側控制面板 */
         #left-panel {
             position: absolute;
             top: 12px;
@@ -33,7 +32,7 @@
         #left-panel::-webkit-scrollbar, #right-math-panel::-webkit-scrollbar { width: 5px; }
         #left-panel::-webkit-scrollbar-thumb, #right-math-panel::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
 
-        h3 { margin: 0 0 8px 0; font-size: 15px; color: #00f5d4; display: flex; justify-content: space-between; align-items: center; }
+        h3 { margin: 0 0 8px 0; font-size: 14.5px; color: #00f5d4; display: flex; justify-content: space-between; align-items: center; }
         .section-title {
             font-size: 11px;
             color: #38bdf8;
@@ -111,21 +110,24 @@
             line-height: 1.45;
         }
 
-        #bleBtn {
+        #bleStatusBadge {
             width: 100%;
-            padding: 9px;
-            background: #0284c7;
-            border: none;
+            padding: 8px 10px;
+            background: rgba(14, 165, 233, 0.15);
+            border: 1px solid rgba(56, 189, 248, 0.4);
             border-radius: 6px;
-            color: #fff;
+            color: #38bdf8;
             font-weight: bold;
             margin-top: 8px;
-            font-size: 12.5px;
-            cursor: pointer;
+            font-size: 12px;
+            text-align: center;
         }
-        #bleBtn.connected { background: #10b981; color: #000; }
+        #bleStatusBadge.connected {
+            background: rgba(16, 185, 129, 0.2);
+            border-color: #10b981;
+            color: #10b981;
+        }
 
-        /* 右上角：全方向觀察視角 */
         #camera-panel {
             position: absolute;
             top: 12px;
@@ -151,7 +153,6 @@
         }
         .cam-grid button.active { background: #38bdf8; color: #000; font-weight: bold; }
 
-        /* 右側中段：即時重心位置與計算過程面板 */
         #right-math-panel {
             position: absolute;
             top: 102px;
@@ -199,7 +200,6 @@
         .formula-box .hl-cyan { color: #00f5d4; font-weight: bold; }
         .formula-box .hl-pink { color: #f472b6; font-weight: bold; }
 
-        /* 右下角：雙雲台四舵機互動按鍵盤 */
         #wasd-hud {
             position: absolute;
             bottom: 12px;
@@ -255,7 +255,6 @@
         }
         .key-cap.pressed span, .key-cap:active span { color: #000; font-weight: bold; }
 
-        /* 底部圖例 */
         #legend-bar {
             position: absolute;
             bottom: 12px;
@@ -274,11 +273,10 @@
 </head>
 <body>
 
-<!-- 左側面板 -->
 <div id="left-panel">
     <h3>
-        <span>雙雲台四舵機尾巴系統</span>
-        <button class="action-btn" id="resetBtn" style="flex:none; padding:4px 9px; min-width:auto;">全部歸零</button>
+        <span>ESP-32S 雙雲台尾巴系統</span>
+        <button class="action-btn" id="resetBtn" style="flex:none; padding:4px 9px; min-width:auto;" title="快捷鍵：空白鍵 (Space)">全部歸零 [Space]</button>
     </h3>
 
     <button class="cruise-btn" id="autoCruiseBtn">啟動全自動連續巡航導覽</button>
@@ -361,10 +359,9 @@
         </div>
     </div>
 
-    <button id="bleBtn">連線 ESP32 同步四舵機 (Pan1,Tilt1,Pan2,Tilt2)</button>
+    <div id="bleStatusBadge">ESP-32S 藍牙自動連線：背景搜尋中...</div>
 </div>
 
-<!-- 右上角：自由視角切換 -->
 <div id="camera-panel">
     <div class="cam-title">自由觀察視角 (滑鼠左鍵旋轉 / 滾輪縮放)</div>
     <div class="cam-grid">
@@ -377,7 +374,6 @@
     </div>
 </div>
 
-<!-- 右側中段：即時重心位置與計算過程 -->
 <div id="right-math-panel">
     <div class="math-header">
         <span>即時重心 (CoM) 與計算過程</span>
@@ -402,10 +398,9 @@
     </div>
 </div>
 
-<!-- 右下角：雙雲台 WASD + IJKL 互動按鍵盤 -->
 <div id="wasd-hud">
     <div class="hud-top">
-        <span>雙雲台鍵盤控制 (按住 Shift 微調)</span>
+        <span>雙雲台鍵盤控制 (空白鍵全部歸零 / Shift微調)</span>
         <button id="fineModeBtn">步進：粗調 (2.0°)</button>
     </div>
     <div class="dual-pad">
@@ -434,7 +429,6 @@
     </div>
 </div>
 
-<!-- 底部圖例說明 -->
 <div id="legend-bar">
     <div><span class="dot" style="background:#ef4444;"></span>無尾巴質心</div>
     <div><span class="dot" style="background:#facc15;"></span>含尾巴總質心</div>
@@ -445,7 +439,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
-    // ================= 1. 3D 場景與自由視角控制 =================
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x111526, 0.02);
 
@@ -501,7 +494,6 @@
     scene.add(dirLight);
     scene.add(new THREE.GridHelper(14, 14, 0x38bdf8, 0x1e293b));
 
-    // ================= 2. 材質定義 =================
     const staticGrayMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.65, metalness: 0.25 });
     const darkGrayMat   = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7, metalness: 0.3 });
     const servoBodyMat  = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4, metalness: 0.5 });
@@ -510,7 +502,6 @@
     const movingAxisMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.25, metalness: 0.6 });
     const counterMassMat= new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.3, metalness: 0.5 });
 
-    // ================= 3. 左側：人物基準模型與雙質心(CoM)視覺化 (X = -1.2) =================
     const charRoot = new THREE.Group();
     charRoot.position.set(-1.2, 0, 0);
     scene.add(charRoot);
@@ -573,12 +564,10 @@
     );
     scene.add(totalProjLine);
 
-    // ================= 4. 右側：不可動灰色長方體基座 + 四舵機雙雲台 + 兩截運動軸 (X = +1.2) =================
     const tailSystemRoot = new THREE.Group();
     tailSystemRoot.position.set(1.2, 0, 0.3);
     scene.add(tailSystemRoot);
 
-    // 不可動灰色長方體結構
     const staticBaseBox = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.14, 0.85), staticGrayMat);
     staticBaseBox.position.y = 0.07;
     tailSystemRoot.add(staticBaseBox);
@@ -604,7 +593,6 @@
         return g;
     }
 
-    // --- 【青綠色雲台一 (基座雙軸雲台)】 ---
     const servo1Mesh = createServoModel(0x00f5d4);
     servo1Mesh.position.set(0, 1.17, -0.08);
     tailSystemRoot.add(servo1Mesh);
@@ -626,13 +614,11 @@
     gimbal1TiltGroup.position.set(0, 0.08, 0);
     gimbal1PanGroup.add(gimbal1TiltGroup);
 
-    // 第一截運動軸
     const arm1Mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.70, 16), movingAxisMat);
     arm1Mesh.rotation.x = Math.PI / 2;
     arm1Mesh.position.set(0, 0, -0.35);
     gimbal1TiltGroup.add(arm1Mesh);
 
-    // --- 【粉紅色雲台二 (中段雙軸雲台)】 ---
     const gimbal2Root = new THREE.Group();
     gimbal2Root.position.set(0, 0, -0.70);
     gimbal1TiltGroup.add(gimbal2Root);
@@ -659,7 +645,6 @@
     const gimbal2TiltGroup = new THREE.Group();
     gimbal2PanGroup.add(gimbal2TiltGroup);
 
-    // 第二截運動軸
     const arm2Mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.65, 16), movingAxisMat);
     arm2Mesh.rotation.x = Math.PI / 2;
     arm2Mesh.position.set(0, 0, -0.325);
@@ -669,16 +654,15 @@
     tipMassMesh.position.set(0, 0, -0.65);
     gimbal2TiltGroup.add(tipMassMesh);
 
-    // ================= 5. 控制狀態、雙級獨立補償與巡航邏輯 =================
     const state = {
         bodyRoll: 0,
         bodyPitch: 0,
         heightCm: 170,
         weightKg: 65,
-        s1: 0,          // 青綠雲台一 Pan 1
-        s2: 0,          // 青綠雲台一 Tilt 1
-        s3: 0,          // 粉紅雲台二 Pan 2
-        s4: 0,          // 粉紅雲台二 Tilt 2
+        s1: 0,
+        s2: 0,
+        s3: 0,
+        s4: 0,
         arm1Len: 0.70,
         arm2Len: 0.65,
         autoComp: false,
@@ -693,11 +677,25 @@
         updateModeBtns();
     }
 
+    function resetAllToZero() {
+        stopAutoModes();
+        state.bodyRoll = 0; state.bodyPitch = 0;
+        state.s1 = 0; state.s2 = 0; state.s3 = 0; state.s4 = 0;
+        syncUI();
+    }
+
     window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            resetAllToZero();
+            ensureAutoBLE();
+            return;
+        }
         const k = e.key.toLowerCase();
         if (k === 'shift') { setFineMode(true); return; }
         if (['w','a','s','d','i','j','k','l'].includes(k)) {
             stopAutoModes();
+            ensureAutoBLE();
             keys[k] = true;
             const el = document.getElementById('key-' + k);
             if (el) el.classList.add('pressed');
@@ -715,7 +713,7 @@
 
     document.querySelectorAll('.key-cap').forEach(btn => {
         const k = btn.dataset.key;
-        const on = (e) => { e.preventDefault(); stopAutoModes(); keys[k] = true; btn.classList.add('pressed'); };
+        const on = (e) => { e.preventDefault(); stopAutoModes(); ensureAutoBLE(); keys[k] = true; btn.classList.add('pressed'); };
         const off = () => { keys[k] = false; btn.classList.remove('pressed'); };
         btn.addEventListener('mousedown', on);
         btn.addEventListener('mouseup', off);
@@ -778,10 +776,7 @@
         updateModeBtns();
     };
 
-    document.getElementById('modeManualBtn').onclick = () => {
-        stopAutoModes();
-    };
-
+    document.getElementById('modeManualBtn').onclick = () => { stopAutoModes(); };
     document.getElementById('modeAutoCompBtn').onclick = () => {
         state.autoCruise = false;
         state.autoComp = true;
@@ -791,13 +786,7 @@
         updateModeBtns();
         syncUI();
     };
-
-    document.getElementById('resetBtn').onclick = () => {
-        stopAutoModes();
-        state.bodyRoll = 0; state.bodyPitch = 0;
-        state.s1 = 0; state.s2 = 0; state.s3 = 0; state.s4 = 0;
-        syncUI();
-    };
+    document.getElementById('resetBtn').onclick = resetAllToZero;
 
     document.getElementById('bodyRollSlider').oninput = (e) => { state.autoCruise = false; updateModeBtns(); state.bodyRoll = parseFloat(e.target.value); syncUI(); };
     document.getElementById('bodyPitchSlider').oninput = (e) => { state.autoCruise = false; updateModeBtns(); state.bodyPitch = parseFloat(e.target.value); syncUI(); };
@@ -844,26 +833,82 @@
     updateModeBtns();
     syncUI();
 
-    // ================= 6. ESP32 BLE 藍牙四舵機同步 =================
+    // ================= 6. ESP-32S 藍牙背景自動連線與重連 (免手動點擊按鈕) =================
     const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
     const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    let bleDevice = null;
     let bleCharacteristic = null;
+    let bleConnecting = false;
     let lastBleTime = 0;
 
-    document.getElementById('bleBtn').addEventListener('click', async () => {
-        const btn = document.getElementById('bleBtn');
+    function updateBleBadge(text, connected) {
+        const badge = document.getElementById('bleStatusBadge');
+        badge.innerText = text;
+        badge.classList.toggle('connected', connected);
+    }
+
+    async function connectToDevice(device) {
+        if (bleConnecting || (device.gatt && device.gatt.connected && bleCharacteristic)) return;
+        bleConnecting = true;
         try {
-            const device = await navigator.bluetooth.requestDevice({
-                filters: [{ name: 'ESP32_Tail_Controller' }],
-                optionalServices: [SERVICE_UUID]
-            });
+            updateBleBadge("ESP-32S 藍牙自動連線中...", false);
             const server = await device.gatt.connect();
             const service = await server.getPrimaryService(SERVICE_UUID);
             bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-            btn.innerText = "已連線 ESP32 (四軸同步中)";
-            btn.classList.add('connected');
+            bleDevice = device;
+            device.ongattserverdisconnected = () => {
+                bleCharacteristic = null;
+                updateBleBadge("ESP-32S 斷線，背景自動重連中...", false);
+                setTimeout(() => connectToDevice(device), 1500);
+            };
+            updateBleBadge("ESP-32S 藍牙已自動連線 (四軸同步)", true);
+        } catch (e) {
+            bleCharacteristic = null;
+            updateBleBadge("ESP-32S 待機中 (偵測到訊號將自動連線)", false);
+        } finally {
+            bleConnecting = false;
+        }
+    }
+
+    // 網頁載入後立即自動掃描已授權過的 ESP-32S 並免點擊自動連線
+    async function autoInitBLE() {
+        if (!navigator.bluetooth) {
+            updateBleBadge("此瀏覽器不支援 Web Bluetooth", false);
+            return;
+        }
+        if (navigator.bluetooth.getDevices) {
+            try {
+                const devices = await navigator.bluetooth.getDevices();
+                const target = devices.find(d => d.name === 'ESP32S_Tail_Controller' || d.name === 'ESP32_Tail_Controller');
+                if (target) {
+                    await connectToDevice(target);
+                    return;
+                }
+            } catch (e) {}
+        }
+        updateBleBadge("ESP-32S 首次自動配對就緒 (操作即自動連線)", false);
+    }
+    autoInitBLE();
+
+    // 若為全新電腦首次使用尚未授權，任意點擊或按鍵即自動觸發一次系統藍牙自動搜尋
+    let promptedOnce = false;
+    async function ensureAutoBLE() {
+        if (bleCharacteristic || bleConnecting || promptedOnce || !navigator.bluetooth) return;
+        if (navigator.bluetooth.getDevices) {
+            const devices = await navigator.bluetooth.getDevices();
+            const target = devices.find(d => d.name === 'ESP32S_Tail_Controller' || d.name === 'ESP32_Tail_Controller');
+            if (target) { connectToDevice(target); return; }
+        }
+        promptedOnce = true;
+        try {
+            const device = await navigator.bluetooth.requestDevice({
+                filters: [{ namePrefix: 'ESP32' }],
+                optionalServices: [SERVICE_UUID]
+            });
+            await connectToDevice(device);
         } catch (e) {}
-    });
+    }
+    window.addEventListener('pointerdown', ensureAutoBLE, { once: true });
 
     async function sendFourServosBLE(p1, t1, p2, t2) {
         if (!bleCharacteristic) return;
@@ -876,7 +921,6 @@
         } catch (e) {}
     }
 
-    // ================= 7. 雙級獨立質心補償與巡航主迴圈 =================
     const g = 9.81;
     const clock = new THREE.Clock();
 
@@ -896,7 +940,6 @@
         if (keys.i) { state.s4 = THREE.MathUtils.clamp(state.s4 + step, -80, 80); changed = true; }
         if (keys.k) { state.s4 = THREE.MathUtils.clamp(state.s4 - step, -80, 80); changed = true; }
 
-        // 先計算當前無尾巴身體偏移需求，供雙級雲台各自獨立解算
         const mBody = state.weightKg;
         const hComBody = (state.heightCm / 100) * 0.56;
         const rollRad = THREE.MathUtils.degToRad(state.bodyRoll);
@@ -905,7 +948,6 @@
         const yBody = hComBody * Math.cos(rollRad) * Math.cos(pitchRad);
         const zBody = hComBody * Math.sin(pitchRad);
 
-        // 【模式 A：全自動連續巡航導覽】
         if (state.autoCruise) {
             const cycle = t % 24;
             const bText = document.getElementById('bannerText');
@@ -938,32 +980,24 @@
             state.s3 += (targetS3 - state.s3) * 0.16;
             state.s4 += (targetS4 - state.s4) * 0.16;
             changed = true;
-        } 
-        // 【模式 B：雙級獨立自動重心補償 (青綠雲台與粉紅雲台各自獨立演算並動態調整)】
-        else if (state.autoComp) {
-            // 1. 青綠色雲台一 (基座主軸)：獨立計算一級粗調角度，承擔約 52% 身體偏移力矩
-            const armRatio1 = 0.70 / state.arm1Len; // 軸長越短，需要轉動的角度越大
+        } else if (state.autoComp) {
+            const armRatio1 = 0.70 / state.arm1Len;
             const targetS1 = THREE.MathUtils.clamp(-state.bodyRoll * 0.95 * armRatio1, -75, 75);
             const targetS2 = THREE.MathUtils.clamp(-state.bodyPitch * 0.90 * armRatio1 + Math.abs(state.bodyRoll) * 0.25, -60, 60);
 
-            // 平滑驅動青綠雲台一 (響應速度 0.12)
             state.s1 += (targetS1 - state.s1) * 0.12;
             state.s2 += (targetS2 - state.s2) * 0.12;
 
-            // 2. 粉紅色雲台二 (中段二級關節)：即時測量「青綠雲台轉動後仍剩餘的質心偏移誤差 (Residual Error)」
-            // 並結合微幅動態主動平衡微調 (Active Micro-Stabilization)，獨立解算第二截軸的折展角！
-            const residualRollErr  = state.bodyRoll + (state.s1 * 0.52);  // 一級補償後剩餘的側傾誤差
-            const residualPitchErr = state.bodyPitch + (state.s2 * 0.48); // 一級補償後剩餘的俯仰誤差
+            const residualRollErr  = state.bodyRoll + (state.s1 * 0.52);
+            const residualPitchErr = state.bodyPitch + (state.s2 * 0.48);
 
             const armRatio2 = 0.65 / state.arm2Len;
-            // 加入獨立的微幅動態平衡追蹤 (讓使用者調整任何參數或開啟補償時，能清楚看到粉紅雲台獨立於青綠雲台進行二次微調)
             const activeTrimPan  = Math.sin(t * 2.2) * 5.5;
             const activeTrimTilt = Math.cos(t * 1.8) * 4.5;
 
             const targetS3 = THREE.MathUtils.clamp(-residualRollErr * 2.35 * armRatio2 - state.s1 * 0.35 + activeTrimPan, -85, 85);
             const targetS4 = THREE.MathUtils.clamp(residualPitchErr * 2.10 * armRatio2 - state.s2 * 0.45 + activeTrimTilt, -80, 80);
 
-            // 粉紅雲台二採用更敏捷的二級伺服響應速度 (0.20)，展現「一級穩重定位、二級敏捷獨立折展」
             state.s3 += (targetS3 - state.s3) * 0.20;
             state.s4 += (targetS4 - state.s4) * 0.20;
             changed = true;
@@ -971,17 +1005,14 @@
 
         if (changed) syncUI();
 
-        // 套用四顆舵機角度至雙雲台 3D 結構
         gimbal1PanGroup.rotation.y  = THREE.MathUtils.degToRad(state.s1);
         gimbal1TiltGroup.rotation.x = THREE.MathUtils.degToRad(state.s2);
         gimbal2PanGroup.rotation.y  = THREE.MathUtils.degToRad(state.s3);
         gimbal2TiltGroup.rotation.x = THREE.MathUtils.degToRad(state.s4);
 
-        // 套用人物基準傾斜角
         bodyPivot.rotation.z = -THREE.MathUtils.degToRad(state.bodyRoll);
         bodyPivot.rotation.x = THREE.MathUtils.degToRad(state.bodyPitch);
 
-        // 精確物理質心 (CoM) 計算
         const noTailOffsetM = Math.hypot(xBody, zBody);
         const noTailTorque = mBody * g * noTailOffsetM;
 
