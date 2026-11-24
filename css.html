@@ -348,7 +348,7 @@
         </div>
     </div>
     <div class="control-group">
-        <label><span style="color:#facc15;">● 舵機 4 (粉/黃)：中段俯仰 Tilt 2 (I/K)</span><span class="val" id="s4Val" style="color:#facc15;">0.0° (PWM 90°)</span></label>
+        <label><span style="color:#f472b6;">● 舵機 4 (粉紅)：中段俯仰 Tilt 2 (I/K)</span><span class="val" id="s4Val" style="color:#f472b6;">0.0° (PWM 90°)</span></label>
         <div class="slider-row">
             <button class="step-btn" onclick="nudgeServo(4, -0.5)">-</button>
             <input type="range" id="s4Slider" min="-80" max="80" step="0.5" value="0">
@@ -642,7 +642,8 @@
     pinkWingR.position.set(0.18, 0.04, -0.05);
     gimbal2PanGroup.add(pinkWingL, pinkWingR);
 
-    const servo4Mesh = createServoModel(0xfacc15);
+    // 統一改為粉色雲台俯仰舵機
+    const servo4Mesh = createServoModel(0xf472b6);
     servo4Mesh.rotation.z = Math.PI / 2;
     servo4Mesh.position.set(0.18, 0, 0);
     gimbal2PanGroup.add(servo4Mesh);
