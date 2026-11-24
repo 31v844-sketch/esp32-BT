@@ -112,15 +112,20 @@
 
         #bleStatusBadge {
             width: 100%;
-            padding: 8px 10px;
-            background: rgba(14, 165, 233, 0.15);
-            border: 1px solid rgba(56, 189, 248, 0.4);
+            padding: 9px 10px;
+            background: rgba(14, 165, 233, 0.18);
+            border: 1px solid rgba(56, 189, 248, 0.5);
             border-radius: 6px;
             color: #38bdf8;
             font-weight: bold;
             margin-top: 8px;
             font-size: 12px;
             text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        #bleStatusBadge:hover {
+            background: rgba(14, 165, 233, 0.3);
         }
         #bleStatusBadge.connected {
             background: rgba(16, 185, 129, 0.2);
@@ -359,7 +364,7 @@
         </div>
     </div>
 
-    <div id="bleStatusBadge">ESP-32S 藍牙自動連線：背景搜尋中...</div>
+    <div id="bleStatusBadge">首次配對：請按空白鍵或點擊此藍色框</div>
 </div>
 
 <div id="camera-panel">
@@ -833,7 +838,7 @@
     updateModeBtns();
     syncUI();
 
-    // ================= 6. ESP-32S 藍牙背景自動連線與重連 (免手動點擊按鈕) =================
+    // ================= 6. ESP-32S 藍牙背景自動連線與重連 =================
     const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
     const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
     let bleDevice = null;
@@ -841,17 +846,18 @@
     let bleConnecting = false;
     let lastBleTime = 0;
 
+    const bleBadge = document.getElementById('bleStatusBadge');
+
     function updateBleBadge(text, connected) {
-        const badge = document.getElementById('bleStatusBadge');
-        badge.innerText = text;
-        badge.classList.toggle('connected', connected);
+        bleBadge.innerText = text;
+        bleBadge.classList.toggle('connected', connected);
     }
 
     async function connectToDevice(device) {
         if (bleConnecting || (device.gatt && device.gatt.connected && bleCharacteristic)) return;
         bleConnecting = true;
         try {
-            updateBleBadge("ESP-32S 藍牙自動連線中...", false);
+            updateBleBadge("ESP-32S 藍牙連線中...", false);
             const server = await device.gatt.connect();
             const service = await server.getPrimaryService(SERVICE_UUID);
             bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
@@ -864,51 +870,50 @@
             updateBleBadge("ESP-32S 藍牙已自動連線 (四軸同步)", true);
         } catch (e) {
             bleCharacteristic = null;
-            updateBleBadge("ESP-32S 待機中 (偵測到訊號將自動連線)", false);
+            updateBleBadge("連線失敗，點擊此處或按空白鍵重試", false);
         } finally {
             bleConnecting = false;
         }
     }
 
-    // 網頁載入後立即自動掃描已授權過的 ESP-32S 並免點擊自動連線
     async function autoInitBLE() {
         if (!navigator.bluetooth) {
-            updateBleBadge("此瀏覽器不支援 Web Bluetooth", false);
+            updateBleBadge("此瀏覽器不支援網頁藍牙 (請改用 Chrome 或 Edge)", false);
             return;
         }
         if (navigator.bluetooth.getDevices) {
             try {
                 const devices = await navigator.bluetooth.getDevices();
-                const target = devices.find(d => d.name === 'ESP32S_Tail_Controller' || d.name === 'ESP32_Tail_Controller');
+                const target = devices.find(d => d.name && d.name.includes('ESP32'));
                 if (target) {
                     await connectToDevice(target);
                     return;
                 }
             } catch (e) {}
         }
-        updateBleBadge("ESP-32S 首次自動配對就緒 (操作即自動連線)", false);
+        updateBleBadge("首次配對：請按空白鍵或點擊此藍色框", false);
     }
     autoInitBLE();
 
-    // 若為全新電腦首次使用尚未授權，任意點擊或按鍵即自動觸發一次系統藍牙自動搜尋
-    let promptedOnce = false;
     async function ensureAutoBLE() {
-        if (bleCharacteristic || bleConnecting || promptedOnce || !navigator.bluetooth) return;
+        if (bleCharacteristic || bleConnecting || !navigator.bluetooth) return;
         if (navigator.bluetooth.getDevices) {
             const devices = await navigator.bluetooth.getDevices();
-            const target = devices.find(d => d.name === 'ESP32S_Tail_Controller' || d.name === 'ESP32_Tail_Controller');
+            const target = devices.find(d => d.name && d.name.includes('ESP32'));
             if (target) { connectToDevice(target); return; }
         }
-        promptedOnce = true;
         try {
             const device = await navigator.bluetooth.requestDevice({
-                filters: [{ namePrefix: 'ESP32' }],
+                acceptAllDevices: true,
                 optionalServices: [SERVICE_UUID]
             });
             await connectToDevice(device);
-        } catch (e) {}
+        } catch (e) {
+            updateBleBadge("未選取裝置 (按空白鍵或點此重試)", false);
+        }
     }
-    window.addEventListener('pointerdown', ensureAutoBLE, { once: true });
+
+    bleBadge.addEventListener('click', ensureAutoBLE);
 
     async function sendFourServosBLE(p1, t1, p2, t2) {
         if (!bleCharacteristic) return;
